@@ -1,0 +1,86 @@
+appId: com.shakedzy.mditor
+productName: MDitor
+copyright: Copyright © 2026 Shaked Zychlinski
+
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - dist-main/**/*
+  - dist-renderer/**/*
+  - package.json
+
+asar: true
+
+fileAssociations:
+  - ext: md
+    name: Markdown Document
+    description: Markdown source file
+    role: Editor
+    icon: build/file-icon
+    mimeType: text/markdown
+  - ext: markdown
+    name: Markdown Document
+    description: Markdown source file
+    role: Editor
+    icon: build/file-icon
+    mimeType: text/markdown
+
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch:
+        - arm64
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  icon: build/icon.icns
+  extendInfo:
+    NSQuitAlwaysKeepsWindows: false
+
+dmg:
+  title: ${productName} ${version}
+  iconSize: 96
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: build/icon.ico
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: rpm
+      arch:
+        - x64
+  icon: build/icons
+  category: Office
+  desktop:
+    MimeType: text/markdown
+    Comment: Cross-platform markdown editor and viewer
+
+publish: null

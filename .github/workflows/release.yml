@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (must match package.json — e.g. 0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - id: check
+        name: Compare input to package.json
+        run: node scripts/check-version.mjs "${{ inputs.version }}"
+
+  build-macos:
+    name: Build macOS (arm64)
+    needs: validate
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - uses: jfrog/fly-action@v1
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --mac --arm64 --publish never
+      - name: Upload to JFrog Fly
+        uses: jfrog/fly-action/upload@v1
+        with:
+          name: mditor
+          version: ${{ inputs.version }}
+          files: |
+            dist/*.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-binaries
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows (x64)
+    needs: validate
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - uses: jfrog/fly-action@v1
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --win --x64 --publish never
+      - name: Upload to JFrog Fly
+        uses: jfrog/fly-action/upload@v1
+        with:
+          name: mditor
+          version: ${{ inputs.version }}
+          files: |
+            dist/*.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: dist/*.exe
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux (x64)
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - uses: jfrog/fly-action@v1
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --linux --x64 --publish never
+      - name: Upload to JFrog Fly
+        uses: jfrog/fly-action/upload@v1
+        with:
+          name: mditor
+          version: ${{ inputs.version }}
+          files: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-binaries
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+            dist/*.rpm
+          if-no-files-found: error
+
+  release:
+    name: Create draft GitHub release
+    needs:
+      - validate
+      - build-macos
+      - build-windows
+      - build-linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.validate.outputs.version }}
+          name: v${{ needs.validate.outputs.version }}
+          draft: true
+          generate_release_notes: true
+          files: release-assets/**
