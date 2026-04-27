@@ -14,13 +14,9 @@ files:
 asar: true
 
 fileAssociations:
-  - ext: md
-    name: Markdown Document
-    description: Markdown source file
-    role: Editor
-    icon: build/file-icon
-    mimeType: text/markdown
-  - ext: markdown
+  - ext:
+      - md
+      - markdown
     name: Markdown Document
     description: Markdown source file
     role: Editor
