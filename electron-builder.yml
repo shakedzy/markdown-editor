@@ -14,9 +14,7 @@ files:
 asar: true
 
 fileAssociations:
-  - ext:
-      - md
-      - markdown
+  - ext: md
     name: Markdown Document
     description: Markdown source file
     role: Editor
