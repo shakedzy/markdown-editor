@@ -37,10 +37,10 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-      - uses: jfrog/fly-action@v1
       - run: npm ci
       - run: npm run build
       - run: npx electron-builder --mac --arm64 --publish never
+      - uses: jfrog/fly-action@v1
       - name: Upload to JFrog Fly
         uses: jfrog/fly-action/upload@v1
         with:
@@ -64,10 +64,10 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-      - uses: jfrog/fly-action@v1
       - run: npm ci
       - run: npm run build
       - run: npx electron-builder --win --x64 --publish never
+      - uses: jfrog/fly-action@v1
       - name: Upload to JFrog Fly
         uses: jfrog/fly-action/upload@v1
         with:
@@ -91,10 +91,10 @@ jobs:
         with:
           node-version: '20'
           cache: npm
-      - uses: jfrog/fly-action@v1
       - run: npm ci
       - run: npm run build
       - run: npx electron-builder --linux --x64 --publish never
+      - uses: jfrog/fly-action@v1
       - name: Upload to JFrog Fly
         uses: jfrog/fly-action/upload@v1
         with:
