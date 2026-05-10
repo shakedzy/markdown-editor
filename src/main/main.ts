@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { registerIpcHandlers } from './ipc';
 import { configureSpellcheck } from './spellcheck';
 import { buildAppMenu } from './menu';
-import { attachWindow, queuePath, pickPathFromArgv } from './fileOpenQueue';
+import { attachWindow, detachWindow, queuePath, pickPathFromArgv } from './fileOpenQueue';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -96,6 +96,7 @@ async function createWindow(): Promise<void> {
   });
 
   mainWindow.on('closed', () => {
+    if (mainWindow) detachWindow(mainWindow);
     mainWindow = null;
   });
 

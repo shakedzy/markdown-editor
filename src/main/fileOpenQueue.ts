@@ -7,9 +7,10 @@ let target: BrowserWindow | null = null;
 
 export function queuePath(filePath: string): void {
   if (!filePath) return;
-  if (target) {
+  if (target && !target.isDestroyed()) {
     void deliver(target, filePath);
   } else {
+    target = null;
     queued.push(filePath);
   }
 }
@@ -18,6 +19,10 @@ export function attachWindow(win: BrowserWindow): void {
   target = win;
   const drain = queued.splice(0);
   for (const p of drain) void deliver(win, p);
+}
+
+export function detachWindow(win: BrowserWindow): void {
+  if (target === win) target = null;
 }
 
 async function deliver(win: BrowserWindow, filePath: string): Promise<void> {
