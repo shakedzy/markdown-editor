@@ -1,10 +1,11 @@
-import { app, BrowserWindow, shell, protocol, net } from 'electron';
+import { app, BrowserWindow, shell, protocol, net, ipcMain, dialog } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { registerIpcHandlers } from './ipc';
 import { configureSpellcheck } from './spellcheck';
 import { buildAppMenu } from './menu';
 import { attachWindow, detachWindow, queuePath, pickPathFromArgv } from './fileOpenQueue';
+import { IpcChannels } from '../shared/types';
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -41,6 +42,49 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 const DEV_URL = 'http://localhost:5173';
 
 let mainWindow: BrowserWindow | null = null;
+let isDirty = false;
+let forceClose = false;
+let closePromptInFlight = false;
+let pendingSaveAction: 'quit' | 'window' | null = null;
+
+function finishClose(mode: 'quit' | 'window'): void {
+  forceClose = true;
+  if (mode === 'quit') {
+    app.quit();
+  } else if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.destroy();
+  }
+}
+
+function promptUnsavedChanges(mode: 'quit' | 'window'): void {
+  if (closePromptInFlight || !mainWindow || mainWindow.isDestroyed()) return;
+  closePromptInFlight = true;
+  const win = mainWindow;
+  void dialog
+    .showMessageBox(win, {
+      type: 'warning',
+      buttons: ['Save', "Don't Save", 'Cancel'],
+      defaultId: 0,
+      cancelId: 2,
+      title: 'Unsaved changes',
+      message: 'Save changes before closing?',
+      detail: 'Your changes will be lost if you don’t save them.',
+    })
+    .then((result) => {
+      closePromptInFlight = false;
+      if (win.isDestroyed()) return;
+      if (result.response === 2) return;
+      if (result.response === 1) {
+        finishClose(mode);
+        return;
+      }
+      pendingSaveAction = mode;
+      win.webContents.send('menu:action', 'saveAndQuit');
+    })
+    .catch(() => {
+      closePromptInFlight = false;
+    });
+}
 
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -95,9 +139,19 @@ async function createWindow(): Promise<void> {
     return { action: 'deny' };
   });
 
+  mainWindow.on('close', (event) => {
+    if (forceClose || !isDirty) return;
+    event.preventDefault();
+    promptUnsavedChanges('window');
+  });
+
   mainWindow.on('closed', () => {
     if (mainWindow) detachWindow(mainWindow);
     mainWindow = null;
+    isDirty = false;
+    forceClose = false;
+    closePromptInFlight = false;
+    pendingSaveAction = null;
   });
 
   if (isDev) {
@@ -110,6 +164,23 @@ async function createWindow(): Promise<void> {
 
   attachWindow(mainWindow);
 }
+
+ipcMain.on(IpcChannels.DirtySet, (_event, dirty: boolean) => {
+  isDirty = Boolean(dirty);
+});
+
+ipcMain.on(IpcChannels.QuitConfirm, () => {
+  const mode = pendingSaveAction ?? 'window';
+  pendingSaveAction = null;
+  finishClose(mode);
+});
+
+app.on('before-quit', (event) => {
+  if (forceClose || !isDirty) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  event.preventDefault();
+  promptUnsavedChanges('quit');
+});
 
 void app.whenReady().then(() => {
   registerMditorProtocol();

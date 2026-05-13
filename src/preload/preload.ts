@@ -12,6 +12,7 @@ type MenuAction =
   | 'openFile'
   | 'save'
   | 'saveAs'
+  | 'saveAndQuit'
   | 'toggleToc'
   | 'toggleViewMode'
   | 'toggleGh'
@@ -33,6 +34,12 @@ const api = {
     ipcRenderer.invoke(IpcChannels.FileSave, args),
   saveFileAs: (args: SaveAsArgs): Promise<SaveResult | null> =>
     ipcRenderer.invoke(IpcChannels.FileSaveAs, args),
+  setDirty: (dirty: boolean): void => {
+    ipcRenderer.send(IpcChannels.DirtySet, dirty);
+  },
+  confirmQuit: (): void => {
+    ipcRenderer.send(IpcChannels.QuitConfirm);
+  },
   onOpenFromOS: (cb: (file: FileResult) => void): (() => void) => {
     const listener = (_e: IpcRendererEvent, payload: FileResult) => cb(payload);
     ipcRenderer.on(IpcChannels.FileFromOS, listener);

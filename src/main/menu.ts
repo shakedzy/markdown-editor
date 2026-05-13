@@ -5,6 +5,7 @@ export type MenuAction =
   | 'openFile'
   | 'save'
   | 'saveAs'
+  | 'saveAndQuit'
   | 'toggleToc'
   | 'toggleViewMode'
   | 'toggleGh'

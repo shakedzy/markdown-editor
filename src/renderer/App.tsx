@@ -163,6 +163,20 @@ export default function App(): JSX.Element {
     setSavedContent(content);
   }, [buffer, filePath]);
 
+  const onSaveAndQuit = useCallback(async () => {
+    const content = editorRef.current?.getContent() ?? buffer;
+    if (!filePath) {
+      const result = await window.api.saveFileAs({ content });
+      if (!result) return;
+      setFilePath(result.path);
+      setSavedContent(content);
+    } else {
+      await window.api.saveFile({ path: filePath, content });
+      setSavedContent(content);
+    }
+    window.api.confirmQuit();
+  }, [buffer, filePath]);
+
   const onToggleViewMode = useCallback(() => {
     setViewMode((m) => (m === 'split' ? 'tabs' : 'split'));
   }, []);
@@ -227,6 +241,9 @@ export default function App(): JSX.Element {
         case 'saveAs':
           void onSaveAs();
           break;
+        case 'saveAndQuit':
+          void onSaveAndQuit();
+          break;
         case 'toggleToc':
           onToggleToc();
           break;
@@ -268,6 +285,7 @@ export default function App(): JSX.Element {
     onOpen,
     onSave,
     onSaveAs,
+    onSaveAndQuit,
     onToggleToc,
     onToggleViewMode,
     onToggleGh,
@@ -289,13 +307,7 @@ export default function App(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    function onBeforeUnload(e: BeforeUnloadEvent) {
-      if (!dirty) return;
-      e.preventDefault();
-      e.returnValue = '';
-    }
-    window.addEventListener('beforeunload', onBeforeUnload);
-    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    window.api.setDirty(dirty);
   }, [dirty]);
 
   const workspaceStyle: CSSProperties =

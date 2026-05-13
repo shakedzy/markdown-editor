@@ -4,6 +4,8 @@ export const IpcChannels = {
   FileSaveAs: 'file:saveAs',
   FileFromOS: 'file:fromOS',
   ReplaceMisspelling: 'spellcheck:replace',
+  DirtySet: 'dirty:set',
+  QuitConfirm: 'quit:confirm',
 } as const;
 
 export interface FileResult {
