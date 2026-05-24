@@ -49,12 +49,14 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor(
     });
     viewRef.current = view;
 
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const onSchemeChange = () => reconfigureHighlight(view);
-    mq.addEventListener('change', onSchemeChange);
+    const observer = new MutationObserver(() => reconfigureHighlight(view));
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
 
     return () => {
-      mq.removeEventListener('change', onSchemeChange);
+      observer.disconnect();
       view.destroy();
       viewRef.current = null;
     };

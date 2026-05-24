@@ -2,27 +2,26 @@ import { promises as fs } from 'node:fs';
 import { BrowserWindow } from 'electron';
 import { IpcChannels, FileResult } from '../shared/types';
 
-const queued: string[] = [];
-let target: BrowserWindow | null = null;
+const queuedByWindow = new WeakMap<BrowserWindow, string[]>();
 
-export function queuePath(filePath: string): void {
+export function queuePathForWindow(win: BrowserWindow, filePath: string): void {
   if (!filePath) return;
-  if (target && !target.isDestroyed()) {
-    void deliver(target, filePath);
-  } else {
-    target = null;
-    queued.push(filePath);
+  let q = queuedByWindow.get(win);
+  if (!q) {
+    q = [];
+    queuedByWindow.set(win, q);
   }
+  q.push(filePath);
 }
 
 export function attachWindow(win: BrowserWindow): void {
-  target = win;
-  const drain = queued.splice(0);
-  for (const p of drain) void deliver(win, p);
+  const q = queuedByWindow.get(win);
+  if (!q) return;
+  for (const p of q.splice(0)) void deliver(win, p);
 }
 
 export function detachWindow(win: BrowserWindow): void {
-  if (target === win) target = null;
+  queuedByWindow.delete(win);
 }
 
 async function deliver(win: BrowserWindow, filePath: string): Promise<void> {

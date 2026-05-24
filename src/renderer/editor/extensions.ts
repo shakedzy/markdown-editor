@@ -69,8 +69,8 @@ const darkSyntax = HighlightStyle.define([
 const highlightCompartment = new Compartment();
 
 function isDarkMode(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  if (typeof document === 'undefined') return false;
+  return document.documentElement.classList.contains('dark');
 }
 
 function pickHighlight(): Extension {

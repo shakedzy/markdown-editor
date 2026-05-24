@@ -4,7 +4,12 @@ import { pathToFileURL } from 'node:url';
 import { registerIpcHandlers } from './ipc';
 import { configureSpellcheck } from './spellcheck';
 import { buildAppMenu } from './menu';
-import { attachWindow, detachWindow, queuePath, pickPathFromArgv } from './fileOpenQueue';
+import {
+  attachWindow,
+  detachWindow,
+  queuePathForWindow,
+  pickPathFromArgv,
+} from './fileOpenQueue';
 import { IpcChannels } from '../shared/types';
 
 protocol.registerSchemesAsPrivileged([
@@ -41,25 +46,44 @@ function registerMditorProtocol(): void {
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 const DEV_URL = 'http://localhost:5173';
 
-let mainWindow: BrowserWindow | null = null;
-let isDirty = false;
-let forceClose = false;
-let closePromptInFlight = false;
-let pendingSaveAction: 'quit' | 'window' | null = null;
+interface WindowState {
+  dirty: boolean;
+  forceClose: boolean;
+  closePromptInFlight: boolean;
+  pendingSaveAction: 'quit' | 'window' | null;
+}
 
-function finishClose(mode: 'quit' | 'window'): void {
-  forceClose = true;
+const windowStates = new WeakMap<BrowserWindow, WindowState>();
+const prelaunchPaths: string[] = [];
+
+function getState(win: BrowserWindow): WindowState {
+  let s = windowStates.get(win);
+  if (!s) {
+    s = {
+      dirty: false,
+      forceClose: false,
+      closePromptInFlight: false,
+      pendingSaveAction: null,
+    };
+    windowStates.set(win, s);
+  }
+  return s;
+}
+
+function finishClose(win: BrowserWindow, mode: 'quit' | 'window'): void {
+  const s = getState(win);
+  s.forceClose = true;
   if (mode === 'quit') {
     app.quit();
-  } else if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.destroy();
+  } else if (!win.isDestroyed()) {
+    win.destroy();
   }
 }
 
-function promptUnsavedChanges(mode: 'quit' | 'window'): void {
-  if (closePromptInFlight || !mainWindow || mainWindow.isDestroyed()) return;
-  closePromptInFlight = true;
-  const win = mainWindow;
+function promptUnsavedChanges(win: BrowserWindow, mode: 'quit' | 'window'): void {
+  const s = getState(win);
+  if (s.closePromptInFlight || win.isDestroyed()) return;
+  s.closePromptInFlight = true;
   void dialog
     .showMessageBox(win, {
       type: 'warning',
@@ -71,18 +95,18 @@ function promptUnsavedChanges(mode: 'quit' | 'window'): void {
       detail: 'Your changes will be lost if you don’t save them.',
     })
     .then((result) => {
-      closePromptInFlight = false;
+      s.closePromptInFlight = false;
       if (win.isDestroyed()) return;
       if (result.response === 2) return;
       if (result.response === 1) {
-        finishClose(mode);
+        finishClose(win, mode);
         return;
       }
-      pendingSaveAction = mode;
+      s.pendingSaveAction = mode;
       win.webContents.send('menu:action', 'saveAndQuit');
     })
     .catch(() => {
-      closePromptInFlight = false;
+      s.closePromptInFlight = false;
     });
 }
 
@@ -94,29 +118,31 @@ if (!gotLock) {
 app.on('open-file', (event, filePath) => {
   event.preventDefault();
   if (isDev) return;
-  queuePath(filePath);
-  if (app.isReady() && !mainWindow) {
-    void createWindow();
-  } else if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+  if (!app.isReady()) {
+    prelaunchPaths.push(filePath);
+    return;
   }
+  void createWindow(filePath);
 });
 
 app.on('second-instance', (_event, argv) => {
   if (isDev) return;
   const filePath = pickPathFromArgv(argv);
-  if (filePath) queuePath(filePath);
-  if (mainWindow) {
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.focus();
+  if (filePath) {
+    void createWindow(filePath);
+    return;
+  }
+  const focused = BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
+  if (focused) {
+    if (focused.isMinimized()) focused.restore();
+    focused.focus();
   }
 });
 
-async function createWindow(): Promise<void> {
+async function createWindow(initialFilePath?: string): Promise<void> {
   const preloadPath = path.join(__dirname, '..', 'preload', 'preload.js');
 
-  mainWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 720,
@@ -132,67 +158,90 @@ async function createWindow(): Promise<void> {
     },
   });
 
-  configureSpellcheck(mainWindow);
+  windowStates.set(win, {
+    dirty: false,
+    forceClose: false,
+    closePromptInFlight: false,
+    pendingSaveAction: null,
+  });
 
-  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+  configureSpellcheck(win);
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  mainWindow.on('close', (event) => {
-    if (forceClose || !isDirty) return;
+  win.on('close', (event) => {
+    const s = getState(win);
+    if (s.forceClose || !s.dirty) return;
     event.preventDefault();
-    promptUnsavedChanges('window');
+    promptUnsavedChanges(win, 'window');
   });
 
-  mainWindow.on('closed', () => {
-    if (mainWindow) detachWindow(mainWindow);
-    mainWindow = null;
-    isDirty = false;
-    forceClose = false;
-    closePromptInFlight = false;
-    pendingSaveAction = null;
+  win.on('closed', () => {
+    detachWindow(win);
+    windowStates.delete(win);
   });
+
+  if (initialFilePath) {
+    queuePathForWindow(win, initialFilePath);
+  }
 
   if (isDev) {
-    await mainWindow.loadURL(DEV_URL);
+    await win.loadURL(DEV_URL);
   } else {
-    await mainWindow.loadFile(
+    await win.loadFile(
       path.join(__dirname, '..', '..', 'dist-renderer', 'index.html'),
     );
   }
 
-  attachWindow(mainWindow);
+  attachWindow(win);
 }
 
-ipcMain.on(IpcChannels.DirtySet, (_event, dirty: boolean) => {
-  isDirty = Boolean(dirty);
+ipcMain.on(IpcChannels.DirtySet, (event, dirty: boolean) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return;
+  getState(win).dirty = Boolean(dirty);
 });
 
-ipcMain.on(IpcChannels.QuitConfirm, () => {
-  const mode = pendingSaveAction ?? 'window';
-  pendingSaveAction = null;
-  finishClose(mode);
+ipcMain.on(IpcChannels.QuitConfirm, (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return;
+  const s = getState(win);
+  const mode = s.pendingSaveAction ?? 'window';
+  s.pendingSaveAction = null;
+  finishClose(win, mode);
 });
 
 app.on('before-quit', (event) => {
-  if (forceClose || !isDirty) return;
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const dirtyWin = BrowserWindow.getAllWindows().find(
+    (w) => !w.isDestroyed() && getState(w).dirty && !getState(w).forceClose,
+  );
+  if (!dirtyWin) return;
   event.preventDefault();
-  promptUnsavedChanges('quit');
+  if (dirtyWin.isMinimized()) dirtyWin.restore();
+  dirtyWin.focus();
+  promptUnsavedChanges(dirtyWin, 'quit');
 });
 
 void app.whenReady().then(() => {
   registerMditorProtocol();
   registerIpcHandlers();
-  buildAppMenu(() => mainWindow);
+  buildAppMenu(() => BrowserWindow.getFocusedWindow());
 
+  const initialPaths: string[] = [];
   if (!isDev) {
-    const initial = pickPathFromArgv(process.argv);
-    if (initial) queuePath(initial);
+    const argvPath = pickPathFromArgv(process.argv);
+    if (argvPath) initialPaths.push(argvPath);
+    initialPaths.push(...prelaunchPaths.splice(0));
   }
 
-  void createWindow();
+  if (initialPaths.length === 0) {
+    void createWindow();
+  } else {
+    for (const p of initialPaths) void createWindow(p);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow();
