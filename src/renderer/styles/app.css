@@ -594,3 +594,17 @@ button.active {
 :root.dark .editor-host .cm-activeLine {
   background: rgba(255, 255, 255, 0.04);
 }
+
+:root.dark .editor-host .cm-content {
+  caret-color: var(--color-text) !important;
+}
+
+:root.dark .editor-host .cm-cursor,
+:root.dark .editor-host .cm-dropCursor {
+  border-left-color: var(--color-text) !important;
+}
+
+:root.dark .editor-host .cm-focused .cm-selectionBackground,
+:root.dark .editor-host .cm-selectionBackground {
+  background-color: #264f78 !important;
+}
