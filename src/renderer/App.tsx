@@ -42,7 +42,11 @@ export default function App(): JSX.Element {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(INITIAL_SETTINGS);
-  const lastRightClickedPaneRef = useRef<'editor' | 'preview' | null>(null);
+  const lastRightClickRef = useRef<{
+    pane: 'editor' | 'preview';
+    x: number;
+    y: number;
+  } | null>(null);
 
   const dirty = buffer !== savedContent;
 
@@ -202,9 +206,10 @@ export default function App(): JSX.Element {
   }, []);
 
   const onTakeMeThere = useCallback(() => {
-    const pane = lastRightClickedPaneRef.current;
-    if (pane === 'editor') {
-      const line = editorRef.current?.currentLine() ?? 1;
+    const click = lastRightClickRef.current;
+    if (!click) return;
+    if (click.pane === 'editor') {
+      const line = editorRef.current?.lineAtCoords(click.x, click.y) ?? 1;
       let idx = 0;
       for (let i = 0; i < headings.length; i++) {
         if (headings[i]!.line <= line) idx = i;
@@ -212,8 +217,8 @@ export default function App(): JSX.Element {
       }
       previewRef.current?.scrollToHeading(idx);
       if (viewMode === 'tabs') setActiveTab('preview');
-    } else if (pane === 'preview') {
-      const idx = previewRef.current?.currentHeadingIndex() ?? 0;
+    } else if (click.pane === 'preview') {
+      const idx = previewRef.current?.headingIndexAtCoords(click.x, click.y) ?? 0;
       const h = headings[idx];
       if (h) editorRef.current?.scrollToLine(h.line);
       if (viewMode === 'tabs') setActiveTab('editor');
@@ -222,7 +227,9 @@ export default function App(): JSX.Element {
 
   const recordRightClick = useCallback((pane: 'editor' | 'preview') => {
     return (e: React.MouseEvent) => {
-      if (e.button === 2) lastRightClickedPaneRef.current = pane;
+      if (e.button === 2) {
+        lastRightClickRef.current = { pane, x: e.clientX, y: e.clientY };
+      }
     };
   }, []);
 

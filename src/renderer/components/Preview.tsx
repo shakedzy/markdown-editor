@@ -10,7 +10,7 @@ interface Props {
 export interface PreviewHandle {
   scrollToSlug(slug: string): void;
   scrollToHeading(index: number): void;
-  currentHeadingIndex(): number;
+  headingIndexAtCoords(x: number, y: number): number;
   element(): HTMLDivElement | null;
 }
 
@@ -81,16 +81,16 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
         );
       });
     },
-    currentHeadingIndex() {
+    headingIndexAtCoords(_x: number, y: number) {
       const host = hostRef.current;
       if (!host) return 0;
       const headings = host.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6');
       if (headings.length === 0) return 0;
-      const hostTop = host.getBoundingClientRect().top;
+      // The section the click falls in: the last heading whose top is at or
+      // above the click point.
       let result = 0;
       for (let i = 0; i < headings.length; i++) {
-        const r = headings[i]!.getBoundingClientRect();
-        if (r.top <= hostTop + 24) result = i;
+        if (headings[i]!.getBoundingClientRect().top <= y) result = i;
         else break;
       }
       return result;

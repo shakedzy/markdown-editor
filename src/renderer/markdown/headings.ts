@@ -1,5 +1,5 @@
 import { EditorState } from '@codemirror/state';
-import { syntaxTree } from '@codemirror/language';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import GithubSlugger from 'github-slugger';
 
 export interface Heading {
@@ -28,7 +28,14 @@ export function extractHeadings(state: EditorState): Heading[] {
   const headings: Heading[] = [];
   const slugger = new GithubSlugger();
 
-  syntaxTree(state).iterate({
+  // CodeMirror parses lazily: for a freshly created (view-less) state,
+  // syntaxTree() only covers the small region parsed within the synchronous
+  // work budget, so headings past the first ~viewport are silently dropped.
+  // Force a full-document parse so every heading is found. Fall back to the
+  // partial tree if the parse can't finish within the timeout.
+  const tree = ensureSyntaxTree(state, state.doc.length, 5000) ?? syntaxTree(state);
+
+  tree.iterate({
     enter(node) {
       const atx = ATX_LEVELS[node.name];
       const setext = SETEXT_LEVELS[node.name];

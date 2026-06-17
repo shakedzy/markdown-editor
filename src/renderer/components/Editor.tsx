@@ -10,7 +10,7 @@ export interface EditorHandle {
   getContent(): string;
   format(action: 'bold' | 'italic' | 'underline' | 'strike'): void;
   scrollToLine(line: number): void;
-  currentLine(): number;
+  lineAtCoords(x: number, y: number): number;
   view(): EditorView | null;
 }
 
@@ -98,11 +98,13 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor(
       });
       view.focus();
     },
-    currentLine() {
+    lineAtCoords(x: number, y: number) {
       const view = viewRef.current;
       if (!view) return 1;
-      const head = view.state.selection.main.head;
-      return view.state.doc.lineAt(head).number;
+      // `precise: false` snaps to the nearest position, so this always
+      // resolves even when the click lands past the end of a line.
+      const pos = view.posAtCoords({ x, y }, false);
+      return view.state.doc.lineAt(pos).number;
     },
     view() {
       return viewRef.current;
