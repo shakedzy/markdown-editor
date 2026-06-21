@@ -45,8 +45,14 @@ const api = {
     ipcRenderer.on(IpcChannels.FileFromOS, listener);
     return () => ipcRenderer.off(IpcChannels.FileFromOS, listener);
   },
-  onMenuAction: (cb: (action: MenuAction) => void): (() => void) => {
-    const listener = (_e: IpcRendererEvent, action: MenuAction) => cb(action);
+  onMenuAction: (
+    cb: (action: MenuAction, payload?: { x: number; y: number }) => void,
+  ): (() => void) => {
+    const listener = (
+      _e: IpcRendererEvent,
+      action: MenuAction,
+      payload?: { x: number; y: number },
+    ) => cb(action, payload);
     ipcRenderer.on('menu:action', listener);
     return () => ipcRenderer.off('menu:action', listener);
   },

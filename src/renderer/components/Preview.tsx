@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { renderMarkdown } from '../markdown/render';
+import { MIN_MATCH_LEN, normalizeForMatch } from '../markdown/locate';
 
 interface Props {
   source: string;
@@ -11,6 +12,8 @@ export interface PreviewHandle {
   scrollToSlug(slug: string): void;
   scrollToHeading(index: number): void;
   headingIndexAtCoords(x: number, y: number): number;
+  textAtCoords(x: number, y: number): string;
+  revealText(opts: { snippet: string; headingIndex: number }): void;
   element(): HTMLDivElement | null;
 }
 
@@ -94,6 +97,80 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
         else break;
       }
       return result;
+    },
+    textAtCoords(x: number, y: number) {
+      const range = document.caretRangeFromPoint(x, y);
+      if (!range) return document.elementFromPoint(x, y)?.textContent ?? '';
+      const node = range.startContainer;
+      const text = node.textContent ?? '';
+      // Inside a code block the whole block is one text node; narrow to the
+      // single line the click landed on.
+      if (node.nodeType === Node.TEXT_NODE && text.includes('\n')) {
+        const off = range.startOffset;
+        const start = text.lastIndexOf('\n', off - 1) + 1;
+        let end = text.indexOf('\n', off);
+        if (end < 0) end = text.length;
+        return text.slice(start, end);
+      }
+      return text;
+    },
+    revealText({ snippet, headingIndex }) {
+      requestAnimationFrame(() => {
+        const host = hostRef.current;
+        if (!host) return;
+        const headings = host.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6');
+        const anchor = headings[headingIndex] ?? null;
+        const target = normalizeForMatch(snippet);
+
+        // Find the element whose text matches the clicked source line. Match on
+        // element textContent (not text nodes): inline formatting like
+        // **bold**/`code`/links splits a line across several text nodes, so no
+        // single text node holds the whole line. Pick the innermost matching
+        // element, preferring one at or after the section heading so earlier
+        // duplicates don't win.
+        let el: HTMLElement | null = null;
+        if (target.length >= MIN_MATCH_LEN) {
+          const matches = (node: Element): boolean =>
+            normalizeForMatch(node.textContent ?? '').includes(target);
+          let firstMatch: HTMLElement | null = null;
+          for (const candidate of host.querySelectorAll<HTMLElement>('*')) {
+            if (!matches(candidate)) continue;
+            // Innermost: skip if a descendant element also contains the line.
+            if (
+              Array.from(candidate.children).some((child) => matches(child))
+            ) {
+              continue;
+            }
+            if (!firstMatch) firstMatch = candidate;
+            const afterAnchor =
+              !anchor ||
+              (anchor.compareDocumentPosition(candidate) &
+                Node.DOCUMENT_POSITION_FOLLOWING) !==
+                0;
+            if (afterAnchor) {
+              el = candidate;
+              break;
+            }
+          }
+          if (!el) el = firstMatch;
+        }
+        if (!el) el = anchor;
+        if (!el) return;
+
+        const hostRect = host.getBoundingClientRect();
+        const targetRect = el.getBoundingClientRect();
+        const offsetWithinHost = targetRect.top - hostRect.top + host.scrollTop;
+        host.scrollTo({ top: Math.max(0, offsetWithinHost - 8), behavior: 'smooth' });
+
+        el.classList.remove('text-flash');
+        void el.offsetHeight;
+        el.classList.add('text-flash');
+        el.addEventListener(
+          'animationend',
+          () => el?.classList.remove('text-flash'),
+          { once: true },
+        );
+      });
     },
     element() {
       return hostRef.current;

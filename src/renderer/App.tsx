@@ -42,11 +42,6 @@ export default function App(): JSX.Element {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<Settings>(INITIAL_SETTINGS);
-  const lastRightClickRef = useRef<{
-    pane: 'editor' | 'preview';
-    x: number;
-    y: number;
-  } | null>(null);
 
   const dirty = buffer !== savedContent;
 
@@ -205,36 +200,43 @@ export default function App(): JSX.Element {
     openSearchPanel(view);
   }, []);
 
-  const onTakeMeThere = useCallback(() => {
-    const click = lastRightClickRef.current;
-    if (!click) return;
-    if (click.pane === 'editor') {
-      const line = editorRef.current?.lineAtCoords(click.x, click.y) ?? 1;
-      let idx = 0;
-      for (let i = 0; i < headings.length; i++) {
-        if (headings[i]!.line <= line) idx = i;
-        else break;
-      }
-      previewRef.current?.scrollToHeading(idx);
-      if (viewMode === 'tabs') setActiveTab('preview');
-    } else if (click.pane === 'preview') {
-      const idx = previewRef.current?.headingIndexAtCoords(click.x, click.y) ?? 0;
-      const h = headings[idx];
-      if (h) editorRef.current?.scrollToLine(h.line);
-      if (viewMode === 'tabs') setActiveTab('editor');
-    }
-  }, [headings, viewMode]);
+  const onTakeMeThere = useCallback(
+    (coords?: { x: number; y: number }) => {
+      if (!coords) return;
+      const { x, y } = coords;
+      const within = (el: HTMLElement | null | undefined): boolean => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        // A display:none pane (tabs mode) has a zero rect, so this never
+        // matches the hidden pane.
+        return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+      };
 
-  const recordRightClick = useCallback((pane: 'editor' | 'preview') => {
-    return (e: React.MouseEvent) => {
-      if (e.button === 2) {
-        lastRightClickRef.current = { pane, x: e.clientX, y: e.clientY };
+      if (within(editorRef.current?.view()?.dom)) {
+        const info = editorRef.current?.lineInfoAtCoords(x, y) ?? {
+          line: 1,
+          text: '',
+        };
+        let idx = 0;
+        for (let i = 0; i < headings.length; i++) {
+          if (headings[i]!.line <= info.line) idx = i;
+          else break;
+        }
+        previewRef.current?.revealText({ snippet: info.text, headingIndex: idx });
+        if (viewMode === 'tabs') setActiveTab('preview');
+      } else if (within(previewRef.current?.element())) {
+        const idx = previewRef.current?.headingIndexAtCoords(x, y) ?? 0;
+        const snippet = previewRef.current?.textAtCoords(x, y) ?? '';
+        const nearLine = headings[idx]?.line ?? 1;
+        editorRef.current?.revealSource({ snippet, nearLine, fallbackLine: nearLine });
+        if (viewMode === 'tabs') setActiveTab('editor');
       }
-    };
-  }, []);
+    },
+    [headings, viewMode],
+  );
 
   useEffect(() => {
-    const off = window.api.onMenuAction((action) => {
+    const off = window.api.onMenuAction((action, payload) => {
       switch (action) {
         case 'newFile':
           void onNew();
@@ -282,7 +284,7 @@ export default function App(): JSX.Element {
           onShowSettings();
           break;
         case 'takeMeThere':
-          onTakeMeThere();
+          onTakeMeThere(payload);
           break;
       }
     });
@@ -372,10 +374,7 @@ export default function App(): JSX.Element {
             className={`workspace mode-${viewMode} active-${activeTab}`}
             style={workspaceStyle}
           >
-            <div
-              className="workspace-pane workspace-editor"
-              onMouseDown={recordRightClick('editor')}
-            >
+            <div className="workspace-pane workspace-editor">
               <Editor ref={editorRef} initialDoc={INITIAL_DOC} onChange={setBuffer} />
             </div>
             <div
@@ -384,10 +383,7 @@ export default function App(): JSX.Element {
               role="separator"
               aria-orientation="vertical"
             />
-            <div
-              className="workspace-pane workspace-preview"
-              onMouseDown={recordRightClick('preview')}
-            >
+            <div className="workspace-pane workspace-preview">
               <Preview
                 ref={previewRef}
                 source={buffer}

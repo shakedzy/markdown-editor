@@ -18,16 +18,20 @@ Runs on **macOS (Apple Silicon)**, **Windows (x64)**, and **Linux (x64)**.
 
 ## Features
 
-- **Two views, one shortcut.** Edit and preview side-by-side or as switchable tabs (`Cmd/Ctrl+\`).
-- **TOC panel.** Optional left-side table-of-contents built from `#` headings — click to jump in both editor and preview (`Cmd/Ctrl+Shift+T`).
-- **Native spell-check.** Uses your OS's dictionary (macOS Cocoa, Windows Spell Check API, Hunspell on Linux). Right-click misspelled words for suggestions and to add to your personal dictionary.
-- **Word-like shortcuts.** `Cmd/Ctrl+B` wraps in `**bold**`, `Cmd/Ctrl+I` wraps in `*italic*`, `Cmd/Ctrl+U` wraps in `<u>underline</u>`. With no selection, the markers are inserted with the cursor placed between them.
+- **Two views, one shortcut.** Edit and preview side-by-side or as switchable tabs (`Cmd/Ctrl+\`). Drag the divider to resize the split.
+- **TOC panel.** Left-side table-of-contents built from `#` (ATX) and Setext headings — click to jump in both editor and preview (`Cmd/Ctrl+Shift+T`). Shown by default.
+- **Native spell-check.** Uses your OS's dictionary via Electron's built-in spell checker (macOS, Windows, and Linux). Right-click misspelled words for suggestions and to add to your personal dictionary.
+- **Word-like shortcuts.** `Cmd/Ctrl+B` wraps in `**bold**`, `Cmd/Ctrl+I` wraps in `_italic_`, `Cmd/Ctrl+U` wraps in `<ins>underline</ins>`. With no selection, the markers are inserted with the cursor placed between them. The exact markers are configurable in Settings.
 - **Smart lists.** Press Enter on a `-`, `*`, `+`, or `1.` line to continue the list. Double-Enter exits the list.
+- **Find / Replace.** `Cmd/Ctrl+F` opens CodeMirror's search & replace panel.
+- **Settings.** `Cmd/Ctrl+,` opens a settings dialog: theme (auto/light/dark), formatting markers, default view (split/tabs), GitHub extensions on by default, and welcome-on-launch.
+- **Light & dark themes.** Auto-follows the OS appearance by default; editor, preview, Mermaid, and code highlighting all switch together.
 - **Always on:** GFM (tables, task lists, strikethrough `~~double~~`, autolinks), inline & display math (`$x^2$` / `$$ … $$`, via KaTeX), and Mermaid diagrams in ` ```mermaid ` fenced blocks.
-- **GH toggle for GitHub-only extensions** (`Cmd/Ctrl+Shift+G`): alerts (`> [!NOTE]`/`[!TIP]`/`[!IMPORTANT]`/`[!WARNING]`/`[!CAUTION]`), footnotes (`[^1]`), single-tilde strikethrough (`~text~`), and emoji shortcodes (`:rocket:`).
+- **GH toggle for GitHub-only extensions** (`Cmd/Ctrl+Shift+G`, on by default): alerts (`> [!NOTE]`/`[!TIP]`/`[!IMPORTANT]`/`[!WARNING]`/`[!CAUTION]`), footnotes (`[^1]`), single-tilde strikethrough (`~text~`), and emoji shortcodes (`:rocket:`).
 - **Syntax-highlighted code blocks.** Powered by [highlight.js](https://highlightjs.org/) with the GitHub theme.
-- **`.md` file association.** MDitor registers as a recommended app for `.md` and `.markdown` files on all three OSes.
-- **Single window, single instance.** Opening a second `.md` from the OS routes into the existing window.
+- **Local images & assets.** Relative image/asset paths in a document are served through a custom `mditor://` protocol so they render in the preview. HTML is sanitized with DOMPurify.
+- **`.md` file association.** MDitor registers as a recommended app for `.md` files on all three OSes. Open/Save dialogs also accept `.markdown`, `.mdown`, and `.mkd`.
+- **Multi-window, single instance.** A single process owns all windows; opening a `.md` from the OS opens it in a new window, while launching MDitor again with no file focuses the existing window.
 
 ## Install
 
@@ -71,12 +75,16 @@ After install, right-click any `.md` file → **Open With** → MDitor. Set as d
 | Open | `Cmd/Ctrl+O` |
 | Save | `Cmd/Ctrl+S` |
 | Save As | `Cmd/Ctrl+Shift+S` |
+| Find / Replace | `Cmd/Ctrl+F` |
+| Settings | `Cmd/Ctrl+,` |
 | Bold | `Cmd/Ctrl+B` |
 | Italic | `Cmd/Ctrl+I` |
 | Underline | `Cmd/Ctrl+U` |
+| Strikethrough | Format menu (no default accelerator) |
 | Toggle Split / Tabs | `Cmd/Ctrl+\` |
 | Toggle TOC Panel | `Cmd/Ctrl+Shift+T` |
 | Toggle GitHub Extensions (GH) | `Cmd/Ctrl+Shift+G` |
+| Keyboard Shortcuts dialog | `?` (or Help menu) |
 
 ## Development
 
@@ -84,38 +92,43 @@ Requires **Node.js 20+** and npm. On first checkout:
 
 ```sh
 npm install
-npm run icons     # generate build/icon.{icns,ico,png} from assets/*.svg (macOS)
 npm run dev       # starts Vite + Electron
 ```
 
-`npm run dev` launches the Vite dev server on port 5173 and an Electron window pointed at it. The app opens a sample document so you can verify the editor, preview, ToC, and spell-check immediately.
+Icon files are committed under `build/`. Only re-run `npm run icons` after changing the source SVGs in `assets/` (`.icns` is regenerated on macOS only).
+
+`npm run dev` launches the Vite dev server on port 5173 (renderer HMR) and an Electron window pointed at it; the main and preload processes are compiled once with `tsc`/`esbuild` before Electron starts. The app opens a sample document so you can verify the editor, preview, ToC, and spell-check immediately.
 
 ### Available scripts
 
 | Script | Purpose |
 |--------|---------|
-| `npm run dev` | Vite dev server + Electron in watch mode |
-| `npm run build` | Compile main, preload, and renderer to `dist-main/` and `dist-renderer/` |
-| `npm run pack` | `electron-builder --dir` (unpacked app, no installer) |
-| `npm run dist` | `electron-builder` for the host OS |
-| `npm run dist:mac` | `electron-builder --mac --arm64` |
-| `npm run dist:win` | `electron-builder --win --x64` |
-| `npm run dist:linux` | `electron-builder --linux --x64` |
-| `npm run icons` | Regenerate icon files from `assets/icon.svg` and `assets/file-icon.svg` (`iconutil` on macOS only for `.icns`) |
+| `npm run dev` | Vite dev server (renderer HMR) + compiled main/preload + Electron |
+| `npm run build` | Compile renderer, main, and preload to `dist-renderer/` and `dist-main/` |
+| `npm run pack` | `npm run build` then `electron-builder --dir` (unpacked app, no installer) |
+| `npm run dist` | `npm run build` then `electron-builder` for the host OS |
+| `npm run dist:mac` | `npm run build` then `electron-builder --mac --arm64` |
+| `npm run dist:win` | `npm run build` then `electron-builder --win --x64` |
+| `npm run dist:linux` | `npm run build` then `electron-builder --linux --x64` |
+| `npm run icons` | Regenerate app + file icons from `assets/icon.svg` and `assets/file-icon.svg` into `build/` (`.icns` generated on macOS only) |
 | `npm run check-version` | `node scripts/check-version.mjs <version>` — used by CI |
-| `npm run typecheck` | TypeScript no-emit check on main+preload+renderer |
+| `npm run typecheck` | TypeScript no-emit check on main+preload and renderer |
+
+The composite scripts above also expose their individual steps: `dev:renderer`, `dev:electron`, `build:renderer`, `build:main`, and `build:preload`.
 
 ### Project layout
 
 ```
 src/
-  main/         # Electron main process (window, menu, IPC, spellcheck context menu)
+  main/         # Electron main process (windows, menu, IPC, spellcheck, mditor:// protocol)
   preload/      # contextBridge surface exposed as window.api
   shared/       # IPC channel names + payload types
-  renderer/     # React app (CodeMirror editor, marked preview, ToC)
-build/          # icon files + macOS entitlements
+  renderer/     # React app (CodeMirror editor, marked preview, ToC, dialogs, toolbar)
+build/          # committed app/file icons + macOS entitlements (regenerate with `npm run icons`)
 assets/         # source SVGs for the icons
 scripts/        # check-version + icon generator
+electron-builder.yml   # packaging / file-association config
+vite.config.ts         # renderer dev server + build
 .github/workflows/release.yml
 ```
 

@@ -191,6 +191,8 @@ export default function SettingsDialog({ open, settings, onChange, onClose }: Pr
               <span>Enable GH Ext by default</span>
             </label>
           </section>
+
+          <p className="settings-version">Version: {__APP_VERSION__}</p>
         </div>
       </div>
     </div>

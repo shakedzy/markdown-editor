@@ -45,7 +45,8 @@
 .preview h3.heading-flash,
 .preview h4.heading-flash,
 .preview h5.heading-flash,
-.preview h6.heading-flash {
+.preview h6.heading-flash,
+.preview .text-flash {
   animation: heading-flash 1.3s ease-out;
   border-radius: 4px;
   margin-left: -8px;

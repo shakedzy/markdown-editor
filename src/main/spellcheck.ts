@@ -47,7 +47,11 @@ export function configureSpellcheck(win: BrowserWindow): void {
     template.push({ type: 'separator' });
     template.push({
       label: 'Take me there in the other pane',
-      click: () => win.webContents.send('menu:action', 'takeMeThere'),
+      click: () =>
+        win.webContents.send('menu:action', 'takeMeThere', {
+          x: params.x,
+          y: params.y,
+        }),
     });
 
     if (template.length === 0) return;

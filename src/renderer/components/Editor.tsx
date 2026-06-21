@@ -3,6 +3,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { buildExtensions, reconfigureHighlight } from '../editor/extensions';
 import { wrapBold, wrapItalic, wrapStrike, wrapUnderline } from '../editor/shortcuts';
+import { MIN_MATCH_LEN, normalizeForMatch } from '../markdown/locate';
 
 export interface EditorHandle {
   focus(): void;
@@ -10,7 +11,12 @@ export interface EditorHandle {
   getContent(): string;
   format(action: 'bold' | 'italic' | 'underline' | 'strike'): void;
   scrollToLine(line: number): void;
-  lineAtCoords(x: number, y: number): number;
+  lineInfoAtCoords(x: number, y: number): { line: number; text: string };
+  revealSource(opts: {
+    snippet: string;
+    nearLine: number;
+    fallbackLine: number;
+  }): void;
   view(): EditorView | null;
 }
 
@@ -98,13 +104,49 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor(
       });
       view.focus();
     },
-    lineAtCoords(x: number, y: number) {
+    lineInfoAtCoords(x: number, y: number) {
       const view = viewRef.current;
-      if (!view) return 1;
+      if (!view) return { line: 1, text: '' };
       // `precise: false` snaps to the nearest position, so this always
       // resolves even when the click lands past the end of a line.
       const pos = view.posAtCoords({ x, y }, false);
-      return view.state.doc.lineAt(pos).number;
+      const line = view.state.doc.lineAt(pos);
+      return { line: line.number, text: line.text };
+    },
+    revealSource({ snippet, nearLine, fallbackLine }) {
+      const view = viewRef.current;
+      if (!view) return;
+      const doc = view.state.doc;
+      const target = normalizeForMatch(snippet);
+
+      // Find the source line whose text matches the clicked content, preferring
+      // the occurrence nearest the section so duplicate text doesn't mislead.
+      let matchLine: number | null = null;
+      if (target.length >= MIN_MATCH_LEN) {
+        let bestDist = Infinity;
+        for (let n = 1; n <= doc.lines; n++) {
+          const cleaned = normalizeForMatch(doc.line(n).text);
+          if (
+            cleaned.length >= MIN_MATCH_LEN &&
+            (cleaned.includes(target) || target.includes(cleaned))
+          ) {
+            const dist = Math.abs(n - nearLine);
+            if (dist < bestDist) {
+              bestDist = dist;
+              matchLine = n;
+            }
+          }
+        }
+      }
+
+      const n = Math.min(Math.max(1, matchLine ?? fallbackLine), doc.lines);
+      const line = doc.line(n);
+      // Select the line so the actual text is highlighted, not just the heading.
+      view.dispatch({
+        selection: { anchor: line.from, head: line.to },
+        effects: EditorView.scrollIntoView(line.from, { y: 'center' }),
+      });
+      view.focus();
     },
     view() {
       return viewRef.current;
