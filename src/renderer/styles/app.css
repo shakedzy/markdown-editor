@@ -581,11 +581,131 @@ button.active {
   min-height: 0;
 }
 
+.pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 3px 8px 3px 12px;
+  background: var(--color-bg-soft);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pane-header-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.pane-open-tab {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  gap: 4px;
+}
+
+.pane-open-tab-arrow {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.pane-open-tab:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.preview-container {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .preview {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 24px 32px;
+}
+
+.preview-search {
+  position: absolute;
+  top: 10px;
+  right: 18px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 5px 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.preview-search-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: 13px;
+  width: 180px;
+  padding: 2px 0;
+}
+
+.preview-search-count {
+  min-width: 40px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.preview-search-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 15px;
+  line-height: 1;
+  border-radius: 5px;
+  color: var(--color-text-muted);
+  justify-content: center;
+}
+
+.preview-search-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.preview-search-btn:disabled:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+::highlight(preview-search) {
+  background-color: rgba(255, 214, 0, 0.4);
+  color: inherit;
+}
+
+::highlight(preview-search-active) {
+  background-color: #ff9a3d;
+  color: #1f2328;
+}
+
+:root.dark ::highlight(preview-search) {
+  background-color: rgba(255, 214, 0, 0.28);
+}
+
+:root.dark ::highlight(preview-search-active) {
+  background-color: #d9820b;
+  color: #0d1117;
 }
 
 :root.dark .editor-host .cm-editor,

@@ -1,6 +1,6 @@
 {
   "name": "mditor",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Cross-platform markdown editor and viewer (Electron + React + CodeMirror).",
   "author": {
     "name": "Shaked Zychlinski",

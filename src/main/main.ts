@@ -139,7 +139,15 @@ app.on('second-instance', (_event, argv) => {
   }
 });
 
-async function createWindow(initialFilePath?: string): Promise<void> {
+interface CreateWindowOptions {
+  /** Start with an empty document, bypassing the "welcome on launch" content. */
+  blank?: boolean;
+}
+
+async function createWindow(
+  initialFilePath?: string,
+  options: CreateWindowOptions = {},
+): Promise<void> {
   const preloadPath = path.join(__dirname, '..', 'preload', 'preload.js');
 
   const win = new BrowserWindow({
@@ -189,10 +197,11 @@ async function createWindow(initialFilePath?: string): Promise<void> {
   }
 
   if (isDev) {
-    await win.loadURL(DEV_URL);
+    await win.loadURL(options.blank ? `${DEV_URL}?blank=1` : DEV_URL);
   } else {
     await win.loadFile(
       path.join(__dirname, '..', '..', 'dist-renderer', 'index.html'),
+      options.blank ? { query: { blank: '1' } } : undefined,
     );
   }
 
@@ -203,6 +212,24 @@ ipcMain.on(IpcChannels.DirtySet, (event, dirty: boolean) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win) return;
   getState(win).dirty = Boolean(dirty);
+});
+
+ipcMain.on(IpcChannels.WindowNew, () => {
+  void createWindow(undefined, { blank: true });
+});
+
+ipcMain.handle(IpcChannels.WindowOpen, async (event): Promise<void> => {
+  const parent = BrowserWindow.fromWebContents(event.sender) ?? undefined;
+  const result = await dialog.showOpenDialog(parent!, {
+    title: 'Open Markdown',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd'] },
+      { name: 'All Files', extensions: ['*'] },
+    ],
+  });
+  if (result.canceled || result.filePaths.length === 0) return;
+  await createWindow(result.filePaths[0], { blank: true });
 });
 
 ipcMain.on(IpcChannels.QuitConfirm, (event) => {

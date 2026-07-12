@@ -11,6 +11,10 @@ export interface Settings {
   ghOnByDefault: boolean;
   theme: Theme;
 
+  // When true, New/Open always spawn a new window. When false, they reuse the
+  // current window if it's empty or the welcome doc with no unsaved changes.
+  alwaysNewWindow: boolean;
+
   _v: number;
 }
 
@@ -25,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultView: 'split',
   ghOnByDefault: true,
   theme: 'auto',
+  alwaysNewWindow: false,
   _v: CURRENT_VERSION,
 };
 

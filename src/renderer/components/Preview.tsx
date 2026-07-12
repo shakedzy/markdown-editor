@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  forwardRef,
+  useImperativeHandle,
+} from 'react';
 import { renderMarkdown } from '../markdown/render';
 import { MIN_MATCH_LEN, normalizeForMatch } from '../markdown/locate';
 
@@ -14,11 +22,18 @@ export interface PreviewHandle {
   headingIndexAtCoords(x: number, y: number): number;
   textAtCoords(x: number, y: number): string;
   revealText(opts: { snippet: string; headingIndex: number }): void;
+  openSearch(): void;
   element(): HTMLDivElement | null;
 }
 
 type Mermaid = typeof import('mermaid').default;
 let mermaidPromise: Promise<Mermaid> | null = null;
+
+// Custom-highlight registry keys. The preview is read-only rendered HTML, so
+// search highlights text ranges via the CSS Custom Highlight API rather than
+// mutating the DOM (which would fight the markdown re-render and mermaid).
+const HL_ALL = 'preview-search';
+const HL_ACTIVE = 'preview-search-active';
 
 function getMermaid(): Promise<Mermaid> {
   if (!mermaidPromise) {
@@ -44,6 +59,14 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
   const hostRef = useRef<HTMLDivElement | null>(null);
   const renderEpochRef = useRef(0);
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [matchCount, setMatchCount] = useState(0);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const rangesRef = useRef<Range[]>([]);
+  const activeIndexRef = useRef(0);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
     const handle = window.setTimeout(() => setDebounced(source), 80);
     return () => window.clearTimeout(handle);
@@ -53,6 +76,87 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
     () => renderMarkdown(debounced, { ghMode, basePath }),
     [debounced, ghMode, basePath],
   );
+
+  const clearHighlights = useCallback(() => {
+    CSS.highlights.delete(HL_ALL);
+    CSS.highlights.delete(HL_ACTIVE);
+    rangesRef.current = [];
+  }, []);
+
+  const scrollRangeIntoView = useCallback((range: Range) => {
+    const host = hostRef.current;
+    if (!host) return;
+    const rect = range.getBoundingClientRect();
+    if (rect.width === 0 && rect.height === 0) return;
+    const hostRect = host.getBoundingClientRect();
+    const offset = rect.top - hostRect.top + host.scrollTop;
+    const target = offset - host.clientHeight / 2 + rect.height / 2;
+    host.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+  }, []);
+
+  // Recompute matches whenever the query, the rendered content, or the open
+  // state changes. Runs on `html` too so results track edits made in split view.
+  useEffect(() => {
+    clearHighlights();
+    const host = hostRef.current;
+    const needle = query.toLowerCase();
+    if (!searchOpen || !host || needle.length === 0) {
+      setMatchCount(0);
+      setActiveIndex(0);
+      activeIndexRef.current = 0;
+      return;
+    }
+
+    const ranges: Range[] = [];
+    const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      const text = node.nodeValue ?? '';
+      if (text) {
+        const hay = text.toLowerCase();
+        let idx = hay.indexOf(needle);
+        while (idx !== -1) {
+          const range = document.createRange();
+          range.setStart(node, idx);
+          range.setEnd(node, idx + needle.length);
+          ranges.push(range);
+          idx = hay.indexOf(needle, idx + needle.length);
+        }
+      }
+      node = walker.nextNode();
+    }
+
+    rangesRef.current = ranges;
+    setMatchCount(ranges.length);
+    setActiveIndex(0);
+    activeIndexRef.current = 0;
+    if (ranges.length > 0) {
+      CSS.highlights.set(HL_ALL, new Highlight(...ranges));
+      CSS.highlights.set(HL_ACTIVE, new Highlight(ranges[0]!));
+      scrollRangeIntoView(ranges[0]!);
+    }
+  }, [query, html, searchOpen, clearHighlights, scrollRangeIntoView]);
+
+  // Clear highlights when the component unmounts.
+  useEffect(() => clearHighlights, [clearHighlights]);
+
+  const go = useCallback(
+    (delta: number) => {
+      const ranges = rangesRef.current;
+      const n = ranges.length;
+      if (n === 0) return;
+      const next = (activeIndexRef.current + delta + n) % n;
+      activeIndexRef.current = next;
+      setActiveIndex(next);
+      CSS.highlights.set(HL_ACTIVE, new Highlight(ranges[next]!));
+      scrollRangeIntoView(ranges[next]!);
+    },
+    [scrollRangeIntoView],
+  );
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+  }, []);
 
   useImperativeHandle(ref, () => ({
     scrollToSlug(slug: string) {
@@ -172,6 +276,13 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
         );
       });
     },
+    openSearch() {
+      setSearchOpen(true);
+      requestAnimationFrame(() => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      });
+    },
     element() {
       return hostRef.current;
     },
@@ -222,12 +333,71 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
     };
   }, [html]);
 
+  const countLabel = query
+    ? matchCount > 0
+      ? `${activeIndex + 1}/${matchCount}`
+      : '0/0'
+    : '';
+
   return (
-    <div
-      ref={hostRef}
-      className="preview"
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <div className="preview-container">
+      {searchOpen && (
+        <div className="preview-search" role="search">
+          <input
+            ref={searchInputRef}
+            type="text"
+            className="preview-search-input"
+            placeholder="Search preview"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                go(e.shiftKey ? -1 : 1);
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeSearch();
+              }
+            }}
+          />
+          <span className="preview-search-count">{countLabel}</span>
+          <button
+            type="button"
+            className="preview-search-btn"
+            onClick={() => go(-1)}
+            disabled={matchCount === 0}
+            title="Previous match (Shift+Enter)"
+            aria-label="Previous match"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="preview-search-btn"
+            onClick={() => go(1)}
+            disabled={matchCount === 0}
+            title="Next match (Enter)"
+            aria-label="Next match"
+          >
+            ›
+          </button>
+          <button
+            type="button"
+            className="preview-search-btn"
+            onClick={closeSearch}
+            title="Close (Esc)"
+            aria-label="Close search"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      <div
+        ref={hostRef}
+        className="preview"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    </div>
   );
 });
 

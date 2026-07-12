@@ -34,6 +34,11 @@ const api = {
     ipcRenderer.invoke(IpcChannels.FileSave, args),
   saveFileAs: (args: SaveAsArgs): Promise<SaveResult | null> =>
     ipcRenderer.invoke(IpcChannels.FileSaveAs, args),
+  newWindow: (): void => {
+    ipcRenderer.send(IpcChannels.WindowNew);
+  },
+  openInNewWindow: (): Promise<void> =>
+    ipcRenderer.invoke(IpcChannels.WindowOpen),
   setDirty: (dirty: boolean): void => {
     ipcRenderer.send(IpcChannels.DirtySet, dirty);
   },

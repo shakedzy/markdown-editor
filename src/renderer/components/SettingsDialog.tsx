@@ -192,6 +192,24 @@ export default function SettingsDialog({ open, settings, onChange, onClose }: Pr
             </label>
           </section>
 
+          <section className="settings-section">
+            <h3>New &amp; Open</h3>
+            <p className="settings-hint">
+              When off, New and Open reuse the current window if it's empty or
+              showing the welcome doc with no unsaved changes; otherwise they
+              open a new window. Applies immediately.
+            </p>
+
+            <label className="settings-checkbox">
+              <input
+                type="checkbox"
+                checked={settings.alwaysNewWindow}
+                onChange={(e) => update('alwaysNewWindow', e.target.checked)}
+              />
+              <span>Always open New / Open in a new window</span>
+            </label>
+          </section>
+
           <p className="settings-version">Version: {__APP_VERSION__}</p>
         </div>
       </div>

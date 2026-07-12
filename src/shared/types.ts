@@ -6,6 +6,8 @@ export const IpcChannels = {
   ReplaceMisspelling: 'spellcheck:replace',
   DirtySet: 'dirty:set',
   QuitConfirm: 'quit:confirm',
+  WindowNew: 'window:new',
+  WindowOpen: 'window:open',
 } as const;
 
 export interface FileResult {

@@ -14,7 +14,11 @@ import { Settings, loadSettings, saveSettings, applyTheme } from './settings';
 import welcomeContent from './welcome.md?raw';
 
 const INITIAL_SETTINGS = loadSettings();
-const INITIAL_DOC = INITIAL_SETTINGS.showWelcomeOnLaunch ? welcomeContent : '';
+// Windows opened via New/Open carry `?blank=1` so they start empty instead of
+// showing the welcome document.
+const START_BLANK = new URLSearchParams(window.location.search).has('blank');
+const INITIAL_DOC =
+  INITIAL_SETTINGS.showWelcomeOnLaunch && !START_BLANK ? welcomeContent : '';
 
 setFormatMarkers({
   bold: INITIAL_SETTINGS.boldMarker,
@@ -120,25 +124,57 @@ export default function App(): JSX.Element {
     document.body.style.userSelect = 'none';
   }, []);
 
+  // Latest reuse-relevant state, read at the moment New/Open fires so the
+  // callbacks can stay stable (no re-subscribing the menu listener per keystroke).
+  const reuseInfoRef = useRef({
+    buffer,
+    savedContent,
+    filePath,
+    alwaysNewWindow: settings.alwaysNewWindow,
+  });
+  reuseInfoRef.current = {
+    buffer,
+    savedContent,
+    filePath,
+    alwaysNewWindow: settings.alwaysNewWindow,
+  };
+
+  // Reuse the current window only when it holds nothing worth preserving: no
+  // file open, no unsaved changes, and either empty or the untouched welcome
+  // doc. Otherwise (or when the user opts into always-new) spawn a new window.
+  const canReuseCurrentWindow = useCallback(() => {
+    const info = reuseInfoRef.current;
+    if (info.alwaysNewWindow) return false;
+    if (info.filePath !== null) return false;
+    if (info.buffer !== info.savedContent) return false;
+    return info.buffer.trim() === '' || info.buffer === welcomeContent;
+  }, []);
+
   const onNew = useCallback(() => {
-    if (dirty && !window.confirm('Discard unsaved changes?')) return;
-    setBuffer('');
-    setSavedContent('');
-    setFilePath(null);
-    editorRef.current?.setContent('');
-    editorRef.current?.focus();
-  }, [dirty]);
+    if (canReuseCurrentWindow()) {
+      setBuffer('');
+      setSavedContent('');
+      setFilePath(null);
+      editorRef.current?.setContent('');
+      editorRef.current?.focus();
+      return;
+    }
+    window.api.newWindow();
+  }, [canReuseCurrentWindow]);
 
   const onOpen = useCallback(async () => {
-    if (dirty && !window.confirm('Discard unsaved changes?')) return;
-    const result = await window.api.openFile();
-    if (!result) return;
-    setBuffer(result.content);
-    setSavedContent(result.content);
-    setFilePath(result.path);
-    editorRef.current?.setContent(result.content);
-    editorRef.current?.focus();
-  }, [dirty]);
+    if (canReuseCurrentWindow()) {
+      const result = await window.api.openFile();
+      if (!result) return;
+      setBuffer(result.content);
+      setSavedContent(result.content);
+      setFilePath(result.path);
+      editorRef.current?.setContent(result.content);
+      editorRef.current?.focus();
+      return;
+    }
+    await window.api.openInNewWindow();
+  }, [canReuseCurrentWindow]);
 
   const onSave = useCallback(async () => {
     const content = editorRef.current?.getContent() ?? buffer;
@@ -180,6 +216,12 @@ export default function App(): JSX.Element {
     setViewMode((m) => (m === 'split' ? 'tabs' : 'split'));
   }, []);
 
+  // From a split pane, jump straight to Tabs view with that pane's tab active.
+  const onPopToTab = useCallback((tab: 'editor' | 'preview') => {
+    setActiveTab(tab);
+    setViewMode('tabs');
+  }, []);
+
   const onToggleToc = useCallback(() => setTocVisible((v) => !v), []);
   const onToggleGh = useCallback(() => setGhMode((g) => !g), []);
 
@@ -194,11 +236,17 @@ export default function App(): JSX.Element {
   const onCloseSettings = useCallback(() => setSettingsOpen(false), []);
 
   const onFind = useCallback(() => {
+    // The preview is read-only, so when it's the visible pane route Find to the
+    // preview's own text search instead of the editor's search panel.
+    if (viewMode === 'tabs' && activeTab === 'preview') {
+      previewRef.current?.openSearch();
+      return;
+    }
     const view = editorRef.current?.view();
     if (!view) return;
     view.focus();
     openSearchPanel(view);
-  }, []);
+  }, [viewMode, activeTab]);
 
   const onTakeMeThere = useCallback(
     (coords?: { x: number; y: number }) => {
@@ -375,6 +423,9 @@ export default function App(): JSX.Element {
             style={workspaceStyle}
           >
             <div className="workspace-pane workspace-editor">
+              {viewMode === 'split' && (
+                <PaneHeader label="Editor" onOpenInTab={() => onPopToTab('editor')} />
+              )}
               <Editor ref={editorRef} initialDoc={INITIAL_DOC} onChange={setBuffer} />
             </div>
             <div
@@ -384,6 +435,9 @@ export default function App(): JSX.Element {
               aria-orientation="vertical"
             />
             <div className="workspace-pane workspace-preview">
+              {viewMode === 'split' && (
+                <PaneHeader label="Preview" onOpenInTab={() => onPopToTab('preview')} />
+              )}
               <Preview
                 ref={previewRef}
                 source={buffer}
@@ -401,6 +455,32 @@ export default function App(): JSX.Element {
         onChange={setSettings}
         onClose={onCloseSettings}
       />
+    </div>
+  );
+}
+
+function PaneHeader({
+  label,
+  onOpenInTab,
+}: {
+  label: string;
+  onOpenInTab: () => void;
+}): JSX.Element {
+  return (
+    <div className="pane-header">
+      <span className="pane-header-label">{label}</span>
+      <button
+        type="button"
+        className="pane-open-tab"
+        onClick={onOpenInTab}
+        title={`Open ${label} in Tabs view`}
+        aria-label={`Open ${label} in Tabs view`}
+      >
+        <span className="pane-open-tab-arrow" aria-hidden="true">→</span>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">
+          <path d="M2 3.5A1.5 1.5 0 0 1 3.5 2h9A1.5 1.5 0 0 1 14 3.5v9a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9Zm1.5-.5a.5.5 0 0 0-.5.5V6h10V3.5a.5.5 0 0 0-.5-.5h-9Z" />
+        </svg>
+      </button>
     </div>
   );
 }
