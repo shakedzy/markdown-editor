@@ -64,4 +64,5 @@ export const formattingKeymap: readonly KeyBinding[] = [
   { key: 'Mod-b', run: wrapBold, preventDefault: true },
   { key: 'Mod-i', run: wrapItalic, preventDefault: true },
   { key: 'Mod-u', run: wrapUnderline, preventDefault: true },
+  { key: 'Mod-Shift-x', run: wrapStrike, preventDefault: true },
 ];

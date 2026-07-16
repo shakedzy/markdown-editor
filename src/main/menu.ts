@@ -97,7 +97,11 @@ export function buildAppMenu(getFocused: () => BrowserWindow | null): void {
           accelerator: 'CmdOrCtrl+U',
           click: send('formatUnderline'),
         },
-        { label: 'Strikethrough', click: send('formatStrike') },
+        {
+          label: 'Strikethrough',
+          accelerator: 'CmdOrCtrl+Shift+X',
+          click: send('formatStrike'),
+        },
       ],
     },
     {

@@ -7,7 +7,6 @@ import markedKatex from 'marked-katex-extension';
 import hljs from 'highlight.js';
 import DOMPurify from 'dompurify';
 import GithubSlugger from 'github-slugger';
-import { singleTildeStrikethrough } from './strikethrough';
 import { buildEmojiMap } from './emoji';
 
 export interface RenderOptions {
@@ -104,7 +103,6 @@ function buildMarked(opts: RenderOptions): Marked {
         renderer: (token) => (token as { emoji: string }).emoji,
       }),
     );
-    m.use({ extensions: [singleTildeStrikethrough] });
   }
 
   m.use({

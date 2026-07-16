@@ -126,25 +126,14 @@ export default function App(): JSX.Element {
 
   // Latest reuse-relevant state, read at the moment New/Open fires so the
   // callbacks can stay stable (no re-subscribing the menu listener per keystroke).
-  const reuseInfoRef = useRef({
-    buffer,
-    savedContent,
-    filePath,
-    alwaysNewWindow: settings.alwaysNewWindow,
-  });
-  reuseInfoRef.current = {
-    buffer,
-    savedContent,
-    filePath,
-    alwaysNewWindow: settings.alwaysNewWindow,
-  };
+  const reuseInfoRef = useRef({ buffer, savedContent, filePath });
+  reuseInfoRef.current = { buffer, savedContent, filePath };
 
   // Reuse the current window only when it holds nothing worth preserving: no
   // file open, no unsaved changes, and either empty or the untouched welcome
-  // doc. Otherwise (or when the user opts into always-new) spawn a new window.
+  // doc. Otherwise spawn a new window.
   const canReuseCurrentWindow = useCallback(() => {
     const info = reuseInfoRef.current;
-    if (info.alwaysNewWindow) return false;
     if (info.filePath !== null) return false;
     if (info.buffer !== info.savedContent) return false;
     return info.buffer.trim() === '' || info.buffer === welcomeContent;

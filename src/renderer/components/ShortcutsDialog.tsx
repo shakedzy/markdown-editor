@@ -35,6 +35,7 @@ const SECTIONS: Section[] = [
       { keys: `${Mod}+B`, desc: 'Bold (wrap selection — marker configurable in Settings)' },
       { keys: `${Mod}+I`, desc: 'Italic (wrap selection — marker configurable in Settings)' },
       { keys: `${Mod}+U`, desc: 'Underline (wrap selection — marker configurable in Settings)' },
+      { keys: `${Mod}+${Shift}+X`, desc: 'Strikethrough (wrap selection — marker configurable in Settings)' },
       { keys: `${Mod}+Z`, desc: 'Undo' },
       { keys: `${Mod}+${Shift}+Z`, desc: 'Redo' },
       { keys: `${Mod}+F`, desc: 'Find / Replace' },

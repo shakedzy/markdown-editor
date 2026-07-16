@@ -129,8 +129,10 @@ export default function SettingsDialog({ open, settings, onChange, onClose }: Pr
             </div>
 
             <p className="settings-hint settings-warn">
-              Notes: <code>~strike~</code> only renders with GH Ext on (it's a
-              GitHub extension, not standard GFM). GitHub's renderer{' '}
+              Notes: both <code>~strike~</code> and <code>~~strike~~</code>{' '}
+              render (standard GFM) and follow GFM flanking rules — a tilde
+              next to whitespace won&rsquo;t open or close a strike, so{' '}
+              <code>~$40M</code> stays literal. GitHub&rsquo;s renderer{' '}
               <strong>strips <code>&lt;u&gt;</code></strong>; pick{' '}
               <code>&lt;ins&gt;</code> for github.com compatibility (both
               display identically in MDitor).
@@ -189,24 +191,6 @@ export default function SettingsDialog({ open, settings, onChange, onClose }: Pr
                 onChange={(e) => update('ghOnByDefault', e.target.checked)}
               />
               <span>Enable GH Ext by default</span>
-            </label>
-          </section>
-
-          <section className="settings-section">
-            <h3>New &amp; Open</h3>
-            <p className="settings-hint">
-              When off, New and Open reuse the current window if it's empty or
-              showing the welcome doc with no unsaved changes; otherwise they
-              open a new window. Applies immediately.
-            </p>
-
-            <label className="settings-checkbox">
-              <input
-                type="checkbox"
-                checked={settings.alwaysNewWindow}
-                onChange={(e) => update('alwaysNewWindow', e.target.checked)}
-              />
-              <span>Always open New / Open in a new window</span>
             </label>
           </section>
 
