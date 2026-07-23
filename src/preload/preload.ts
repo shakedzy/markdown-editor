@@ -5,6 +5,7 @@ import {
   SaveArgs,
   SaveAsArgs,
   SaveResult,
+  ExportPdfArgs,
 } from '../shared/types';
 
 type MenuAction =
@@ -24,7 +25,8 @@ type MenuAction =
   | 'showSettings'
   | 'toggleWelcomeOnLaunch'
   | 'takeMeThere'
-  | 'formatStrike';
+  | 'formatStrike'
+  | 'exportPdf';
 
 const api = {
   platform: process.platform,
@@ -34,6 +36,8 @@ const api = {
     ipcRenderer.invoke(IpcChannels.FileSave, args),
   saveFileAs: (args: SaveAsArgs): Promise<SaveResult | null> =>
     ipcRenderer.invoke(IpcChannels.FileSaveAs, args),
+  exportPdf: (args: ExportPdfArgs): Promise<SaveResult | null> =>
+    ipcRenderer.invoke(IpcChannels.PdfExport, args),
   newWindow: (): void => {
     ipcRenderer.send(IpcChannels.WindowNew);
   },

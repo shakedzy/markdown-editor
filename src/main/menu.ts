@@ -17,7 +17,8 @@ export type MenuAction =
   | 'showSettings'
   | 'toggleWelcomeOnLaunch'
   | 'takeMeThere'
-  | 'formatStrike';
+  | 'formatStrike'
+  | 'exportPdf';
 
 export function buildAppMenu(getFocused: () => BrowserWindow | null): void {
   const isMac = process.platform === 'darwin';
@@ -61,6 +62,12 @@ export function buildAppMenu(getFocused: () => BrowserWindow | null): void {
           label: 'Save As…',
           accelerator: 'CmdOrCtrl+Shift+S',
           click: send('saveAs'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Export to PDF…',
+          accelerator: 'CmdOrCtrl+Shift+E',
+          click: send('exportPdf'),
         },
         ...(isMac
           ? ([] as Electron.MenuItemConstructorOptions[])

@@ -24,6 +24,7 @@ Runs on **macOS (Apple Silicon)**, **Windows (x64)**, and **Linux (x64)**.
 - **Word-like shortcuts.** `Cmd/Ctrl+B` wraps in `**bold**`, `Cmd/Ctrl+I` wraps in `_italic_`, `Cmd/Ctrl+U` wraps in `<ins>underline</ins>`. With no selection, the markers are inserted with the cursor placed between them. The exact markers are configurable in Settings.
 - **Smart lists.** Press Enter on a `-`, `*`, `+`, or `1.` line to continue the list. Double-Enter exits the list.
 - **Find / Replace.** `Cmd/Ctrl+F` opens CodeMirror's search & replace panel.
+- **Export to PDF.** `Cmd/Ctrl+Shift+E` (or File → Export to PDF…) renders the current preview — math, Mermaid diagrams, syntax highlighting, and images included — to a PDF.
 - **Settings.** `Cmd/Ctrl+,` opens a settings dialog: theme (auto/light/dark), formatting markers, default view (split/tabs), GitHub extensions on by default, and welcome-on-launch.
 - **Light & dark themes.** Auto-follows the OS appearance by default; editor, preview, Mermaid, and code highlighting all switch together.
 - **Always on:** GFM (tables, task lists, strikethrough `~~double~~`, autolinks), inline & display math (`$x^2$` / `$$ … $$`, via KaTeX), and Mermaid diagrams in ` ```mermaid ` fenced blocks.
@@ -75,6 +76,7 @@ After install, right-click any `.md` file → **Open With** → MDitor. Set as d
 | Open | `Cmd/Ctrl+O` |
 | Save | `Cmd/Ctrl+S` |
 | Save As | `Cmd/Ctrl+Shift+S` |
+| Export to PDF | `Cmd/Ctrl+Shift+E` |
 | Find / Replace | `Cmd/Ctrl+F` |
 | Settings | `Cmd/Ctrl+,` |
 | Bold | `Cmd/Ctrl+B` |

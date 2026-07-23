@@ -24,6 +24,8 @@ export interface PreviewHandle {
   revealText(opts: { snippet: string; headingIndex: number }): void;
   openSearch(): void;
   element(): HTMLDivElement | null;
+  /** The rendered markup (mermaid SVGs, KaTeX, and highlighting included). */
+  getHTML(): string;
 }
 
 type Mermaid = typeof import('mermaid').default;
@@ -285,6 +287,9 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
     },
     element() {
       return hostRef.current;
+    },
+    getHTML() {
+      return hostRef.current?.innerHTML ?? '';
     },
   }));
 

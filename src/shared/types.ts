@@ -3,6 +3,7 @@ export const IpcChannels = {
   FileSave: 'file:save',
   FileSaveAs: 'file:saveAs',
   FileFromOS: 'file:fromOS',
+  PdfExport: 'pdf:export',
   ReplaceMisspelling: 'spellcheck:replace',
   DirtySet: 'dirty:set',
   QuitConfirm: 'quit:confirm',
@@ -27,4 +28,10 @@ export interface SaveAsArgs {
 
 export interface SaveResult {
   path: string;
+}
+
+export interface ExportPdfArgs {
+  /** A fully self-contained HTML document (styles inlined) to render as the PDF. */
+  html: string;
+  suggestedName?: string;
 }

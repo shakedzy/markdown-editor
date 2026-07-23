@@ -27,6 +27,7 @@ const SECTIONS: Section[] = [
       { keys: `${Mod}+O`, desc: 'Open' },
       { keys: `${Mod}+S`, desc: 'Save' },
       { keys: `${Mod}+${Shift}+S`, desc: 'Save As' },
+      { keys: `${Mod}+${Shift}+E`, desc: 'Export to PDF' },
     ],
   },
   {

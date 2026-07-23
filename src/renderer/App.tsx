@@ -11,6 +11,7 @@ import { extractHeadings, Heading } from './markdown/headings';
 import { buildExtensions } from './editor/extensions';
 import { setFormatMarkers } from './editor/shortcuts';
 import { Settings, loadSettings, saveSettings, applyTheme } from './settings';
+import { exportPreviewToPdf } from './export';
 import welcomeContent from './welcome.md?raw';
 
 const INITIAL_SETTINGS = loadSettings();
@@ -201,6 +202,12 @@ export default function App(): JSX.Element {
     window.api.confirmQuit();
   }, [buffer, filePath]);
 
+  const onExportPdf = useCallback(async () => {
+    const previewHtml = previewRef.current?.getHTML() ?? '';
+    if (!previewHtml.trim()) return;
+    await exportPreviewToPdf(previewHtml, filePath);
+  }, [filePath]);
+
   const onToggleViewMode = useCallback(() => {
     setViewMode((m) => (m === 'split' ? 'tabs' : 'split'));
   }, []);
@@ -287,6 +294,9 @@ export default function App(): JSX.Element {
         case 'saveAs':
           void onSaveAs();
           break;
+        case 'exportPdf':
+          void onExportPdf();
+          break;
         case 'saveAndQuit':
           void onSaveAndQuit();
           break;
@@ -331,6 +341,7 @@ export default function App(): JSX.Element {
     onOpen,
     onSave,
     onSaveAs,
+    onExportPdf,
     onSaveAndQuit,
     onToggleToc,
     onToggleViewMode,
