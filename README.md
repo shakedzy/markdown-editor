@@ -82,7 +82,7 @@ After install, right-click any `.md` file → **Open With** → MDitor. Set as d
 | Bold | `Cmd/Ctrl+B` |
 | Italic | `Cmd/Ctrl+I` |
 | Underline | `Cmd/Ctrl+U` |
-| Strikethrough | Format menu (no default accelerator) |
+| Strikethrough | `Cmd/Ctrl+Shift+X` |
 | Toggle Split / Tabs | `Cmd/Ctrl+\` |
 | Toggle TOC Panel | `Cmd/Ctrl+Shift+T` |
 | Toggle GitHub Extensions (GH) | `Cmd/Ctrl+Shift+G` |
