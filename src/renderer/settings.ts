@@ -8,6 +8,9 @@ export interface Settings {
 
   showWelcomeOnLaunch: boolean;
   defaultView: 'split' | 'tabs';
+  activeTab: 'editor' | 'preview';
+  tocVisible: boolean;
+  fileTreeVisible: boolean;
   ghOnByDefault: boolean;
   theme: Theme;
 
@@ -23,6 +26,9 @@ export const DEFAULT_SETTINGS: Settings = {
   underlineMarker: 'ins',
   showWelcomeOnLaunch: true,
   defaultView: 'split',
+  activeTab: 'editor',
+  tocVisible: true,
+  fileTreeVisible: true,
   ghOnByDefault: true,
   theme: 'auto',
   _v: CURRENT_VERSION,
@@ -78,4 +84,41 @@ export function loadSettings(): Settings {
 export function saveSettings(s: Settings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify({ ...s, _v: CURRENT_VERSION }));
   localStorage.removeItem(LEGACY_WELCOME_KEY);
+}
+
+const LAST_FOLDER_KEY = 'mditor.lastFolder';
+
+export function loadLastFolder(): string | null {
+  try {
+    return localStorage.getItem(LAST_FOLDER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastFolder(path: string | null): void {
+  try {
+    if (path) localStorage.setItem(LAST_FOLDER_KEY, path);
+    else localStorage.removeItem(LAST_FOLDER_KEY);
+  } catch {
+    // ignore storage failures
+  }
+}
+
+const SHOW_HIDDEN_KEY = 'mditor.showHiddenFiles';
+
+export function loadShowHiddenFiles(): boolean {
+  try {
+    return localStorage.getItem(SHOW_HIDDEN_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function saveShowHiddenFiles(show: boolean): void {
+  try {
+    localStorage.setItem(SHOW_HIDDEN_KEY, show ? '1' : '0');
+  } catch {
+    // ignore storage failures
+  }
 }

@@ -474,6 +474,113 @@ button.active {
 .toc-level-5 button { padding-left: 60px; font-size: 12px; color: var(--color-text-muted); }
 .toc-level-6 button { padding-left: 72px; font-size: 12px; color: var(--color-text-muted); }
 
+.app .filetree {
+  flex: 0 0 var(--toc-width);
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-soft);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.filetree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 8px 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.filetree-header-name {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filetree-hidden-toggle {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+.filetree-hidden-toggle:hover {
+  background: var(--color-accent-soft);
+}
+
+.filetree-hidden-toggle.active {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.filetree-empty-msg {
+  padding: 12px 16px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.filetree-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.filetree > .filetree-list {
+  padding: 6px 0;
+}
+
+.filetree-dir,
+.filetree-file {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 4px 12px;
+  border: none;
+  border-radius: 0;
+  background: none;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  color: inherit;
+}
+
+.filetree-dir {
+  font-weight: 600;
+}
+
+.filetree-caret {
+  display: inline-block;
+  width: 14px;
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.filetree-dir:hover,
+.filetree-file:hover {
+  background: var(--color-accent-soft);
+}
+
+.filetree-file.active {
+  background: var(--color-accent-soft);
+  font-weight: 600;
+}
+
 .workspace-container {
   flex: 1;
   min-width: 0;

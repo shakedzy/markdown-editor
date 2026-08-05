@@ -19,6 +19,7 @@ Runs on **macOS (Apple Silicon)**, **Windows (x64)**, and **Linux (x64)**.
 ## Features
 
 - **Two views, one shortcut.** Edit and preview side-by-side or as switchable tabs (`Cmd/Ctrl+\`). Drag the divider to resize the split.
+- **Folder browser.** Open a folder (`Cmd/Ctrl+Shift+O`) to browse all its markdown files in a collapsible left-side tree — click any file to open it. The tree auto-refreshes as files change on disk, the last folder reopens on launch, and it toggles with `Cmd/Ctrl+Shift+E`.
 - **TOC panel.** Left-side table-of-contents built from `#` (ATX) and Setext headings — click to jump in both editor and preview (`Cmd/Ctrl+Shift+T`). Shown by default.
 - **Native spell-check.** Uses your OS's dictionary via Electron's built-in spell checker (macOS, Windows, and Linux). Right-click misspelled words for suggestions and to add to your personal dictionary.
 - **Word-like shortcuts.** `Cmd/Ctrl+B` wraps in `**bold**`, `Cmd/Ctrl+I` wraps in `_italic_`, `Cmd/Ctrl+U` wraps in `<ins>underline</ins>`. With no selection, the markers are inserted with the cursor placed between them. The exact markers are configurable in Settings.
@@ -74,6 +75,7 @@ After install, right-click any `.md` file → **Open With** → MDitor. Set as d
 |--------|----------|
 | New | `Cmd/Ctrl+N` |
 | Open | `Cmd/Ctrl+O` |
+| Open Folder | `Cmd/Ctrl+Shift+O` |
 | Save | `Cmd/Ctrl+S` |
 | Save As | `Cmd/Ctrl+Shift+S` |
 | Export to PDF | `Cmd/Ctrl+Shift+E` |
@@ -84,6 +86,7 @@ After install, right-click any `.md` file → **Open With** → MDitor. Set as d
 | Underline | `Cmd/Ctrl+U` |
 | Strikethrough | `Cmd/Ctrl+Shift+X` |
 | Toggle Split / Tabs | `Cmd/Ctrl+\` |
+| Toggle File Tree | `Cmd/Ctrl+Shift+E` |
 | Toggle TOC Panel | `Cmd/Ctrl+Shift+T` |
 | Toggle GitHub Extensions (GH) | `Cmd/Ctrl+Shift+G` |
 | Keyboard Shortcuts dialog | `?` (or Help menu) |

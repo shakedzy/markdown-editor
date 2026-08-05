@@ -5,13 +5,24 @@ import Toolbar from './components/Toolbar';
 import Editor, { EditorHandle } from './components/Editor';
 import Preview, { PreviewHandle } from './components/Preview';
 import Toc from './components/Toc';
+import FileTree from './components/FileTree';
 import ShortcutsDialog from './components/ShortcutsDialog';
 import SettingsDialog from './components/SettingsDialog';
 import { extractHeadings, Heading } from './markdown/headings';
 import { buildExtensions } from './editor/extensions';
 import { setFormatMarkers } from './editor/shortcuts';
-import { Settings, loadSettings, saveSettings, applyTheme } from './settings';
+import {
+  Settings,
+  loadSettings,
+  saveSettings,
+  applyTheme,
+  loadLastFolder,
+  saveLastFolder,
+  loadShowHiddenFiles,
+  saveShowHiddenFiles,
+} from './settings';
 import { exportPreviewToPdf } from './export';
+import type { FolderResult } from '../shared/types';
 import welcomeContent from './welcome.md?raw';
 
 const INITIAL_SETTINGS = loadSettings();
@@ -40,8 +51,11 @@ export default function App(): JSX.Element {
   const [savedContent, setSavedContent] = useState(INITIAL_DOC);
   const [filePath, setFilePath] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'split' | 'tabs'>(INITIAL_SETTINGS.defaultView);
-  const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor');
-  const [tocVisible, setTocVisible] = useState(true);
+  const [activeTab, setActiveTab] = useState<'editor' | 'preview'>(INITIAL_SETTINGS.activeTab);
+  const [tocVisible, setTocVisible] = useState(INITIAL_SETTINGS.tocVisible);
+  const [folder, setFolder] = useState<FolderResult | null>(null);
+  const [fileTreeVisible, setFileTreeVisible] = useState(INITIAL_SETTINGS.fileTreeVisible);
+  const [showHidden, setShowHidden] = useState(loadShowHiddenFiles);
   const [ghMode, setGhMode] = useState(INITIAL_SETTINGS.ghOnByDefault);
   const [leftFraction, setLeftFraction] = useState(0.5);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -85,6 +99,24 @@ export default function App(): JSX.Element {
     return () => mq.removeEventListener('change', handler);
   }, [settings.theme]);
 
+  // Remember the current layout (view mode, TOC, file tree) so it's restored
+  // on next launch instead of resetting to hardcoded defaults.
+  useEffect(() => {
+    setSettings((s) => (s.defaultView === viewMode ? s : { ...s, defaultView: viewMode }));
+  }, [viewMode]);
+
+  useEffect(() => {
+    setSettings((s) => (s.tocVisible === tocVisible ? s : { ...s, tocVisible }));
+  }, [tocVisible]);
+
+  useEffect(() => {
+    setSettings((s) => (s.fileTreeVisible === fileTreeVisible ? s : { ...s, fileTreeVisible }));
+  }, [fileTreeVisible]);
+
+  useEffect(() => {
+    setSettings((s) => (s.activeTab === activeTab ? s : { ...s, activeTab }));
+  }, [activeTab]);
+
   useEffect(() => {
     function onMove(e: MouseEvent) {
       if (!draggingRef.current || !workspaceRef.current) return;
@@ -105,6 +137,38 @@ export default function App(): JSX.Element {
       window.removeEventListener('mouseup', onUp);
     };
   }, []);
+
+  const scrollSyncSourceRef = useRef<'editor' | 'preview' | null>(null);
+
+  useEffect(() => {
+    if (viewMode !== 'split') return;
+    const editorEl = editorRef.current?.scrollElement();
+    const previewEl = previewRef.current?.element();
+    if (!editorEl || !previewEl) return;
+
+    function syncFrom(source: 'editor' | 'preview') {
+      if (scrollSyncSourceRef.current && scrollSyncSourceRef.current !== source) return;
+      scrollSyncSourceRef.current = source;
+      const from = source === 'editor' ? editorEl! : previewEl!;
+      const to = source === 'editor' ? previewEl! : editorEl!;
+      const fromMax = from.scrollHeight - from.clientHeight;
+      const fraction = fromMax > 0 ? from.scrollTop / fromMax : 0;
+      const toMax = to.scrollHeight - to.clientHeight;
+      to.scrollTop = toMax > 0 ? fraction * toMax : 0;
+      requestAnimationFrame(() => {
+        if (scrollSyncSourceRef.current === source) scrollSyncSourceRef.current = null;
+      });
+    }
+
+    const onEditorScroll = () => syncFrom('editor');
+    const onPreviewScroll = () => syncFrom('preview');
+    editorEl.addEventListener('scroll', onEditorScroll);
+    previewEl.addEventListener('scroll', onPreviewScroll);
+    return () => {
+      editorEl.removeEventListener('scroll', onEditorScroll);
+      previewEl.removeEventListener('scroll', onPreviewScroll);
+    };
+  }, [viewMode]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -165,6 +229,38 @@ export default function App(): JSX.Element {
     }
     await window.api.openInNewWindow();
   }, [canReuseCurrentWindow]);
+
+  const onOpenFolder = useCallback(async () => {
+    const result = await window.api.openFolder(showHidden);
+    if (!result) return;
+    setFolder(result);
+    saveLastFolder(result.root);
+  }, [showHidden]);
+
+  const onToggleFileTree = useCallback(() => setFileTreeVisible((v) => !v), []);
+
+  const onToggleShowHidden = useCallback(() => {
+    setShowHidden((prev) => {
+      const next = !prev;
+      saveShowHiddenFiles(next);
+      return next;
+    });
+  }, []);
+
+  const openPath = useCallback(
+    async (path: string) => {
+      if (path === filePath) return;
+      if (dirty && !window.confirm('Discard unsaved changes?')) return;
+      const result = await window.api.readFile(path);
+      if (!result) return;
+      setBuffer(result.content);
+      setSavedContent(result.content);
+      setFilePath(result.path);
+      editorRef.current?.setContent(result.content);
+      editorRef.current?.focus();
+    },
+    [dirty, filePath],
+  );
 
   const onSave = useCallback(async () => {
     const content = editorRef.current?.getContent() ?? buffer;
@@ -288,6 +384,12 @@ export default function App(): JSX.Element {
         case 'openFile':
           void onOpen();
           break;
+        case 'openFolder':
+          void onOpenFolder();
+          break;
+        case 'toggleFileTree':
+          onToggleFileTree();
+          break;
         case 'save':
           void onSave();
           break;
@@ -339,6 +441,8 @@ export default function App(): JSX.Element {
   }, [
     onNew,
     onOpen,
+    onOpenFolder,
+    onToggleFileTree,
     onSave,
     onSaveAs,
     onExportPdf,
@@ -364,6 +468,37 @@ export default function App(): JSX.Element {
   }, []);
 
   useEffect(() => {
+    const off = window.api.onFolderChanged((updated) => {
+      setFolder((current) =>
+        current && current.root === updated.root ? updated : current,
+      );
+    });
+    return off;
+  }, []);
+
+  useEffect(() => {
+    const last = loadLastFolder();
+    if (!last) return;
+    void window.api.reopenFolder(last, loadShowHiddenFiles()).then((result) => {
+      if (result) setFolder(result);
+      else saveLastFolder(null);
+    });
+  }, []);
+
+  const folderRootRef = useRef<string | null>(null);
+  useEffect(() => {
+    folderRootRef.current = folder?.root ?? null;
+  }, [folder]);
+
+  useEffect(() => {
+    const root = folderRootRef.current;
+    if (!root) return;
+    void window.api.reopenFolder(root, showHidden).then((result) => {
+      if (result) setFolder(result);
+    });
+  }, [showHidden]);
+
+  useEffect(() => {
     window.api.setDirty(dirty);
   }, [dirty]);
 
@@ -384,6 +519,10 @@ export default function App(): JSX.Element {
         ghMode={ghMode}
         onNew={onNew}
         onOpen={() => void onOpen()}
+        onOpenFolder={() => void onOpenFolder()}
+        onToggleFileTree={onToggleFileTree}
+        folderOpen={folder !== null}
+        fileTreeVisible={fileTreeVisible}
         onSave={() => void onSave()}
         onSaveAs={() => void onSaveAs()}
         onToggleViewMode={onToggleViewMode}
@@ -393,6 +532,15 @@ export default function App(): JSX.Element {
         onShowSettings={onShowSettings}
       />
       <div className="main">
+        {folder && fileTreeVisible && (
+          <FileTree
+            folder={folder}
+            activePath={filePath}
+            onSelect={(p) => void openPath(p)}
+            showHidden={showHidden}
+            onToggleShowHidden={onToggleShowHidden}
+          />
+        )}
         {tocVisible && <Toc headings={headings} onSelect={onSelectHeading} />}
         <div className="workspace-container">
           {viewMode === 'tabs' && (

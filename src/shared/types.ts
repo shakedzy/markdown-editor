@@ -1,9 +1,13 @@
 export const IpcChannels = {
   FileOpen: 'file:open',
+  FileRead: 'file:read',
   FileSave: 'file:save',
   FileSaveAs: 'file:saveAs',
   FileFromOS: 'file:fromOS',
   PdfExport: 'pdf:export',
+  FolderOpen: 'folder:open',
+  FolderReopen: 'folder:reopen',
+  FolderChanged: 'folder:changed',
   ReplaceMisspelling: 'spellcheck:replace',
   DirtySet: 'dirty:set',
   QuitConfirm: 'quit:confirm',
@@ -14,6 +18,18 @@ export const IpcChannels = {
 export interface FileResult {
   path: string;
   content: string;
+}
+
+export interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'dir';
+  children?: FileNode[];
+}
+
+export interface FolderResult {
+  root: string;
+  tree: FileNode[];
 }
 
 export interface SaveArgs {

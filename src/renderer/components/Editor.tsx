@@ -18,6 +18,7 @@ export interface EditorHandle {
     fallbackLine: number;
   }): void;
   view(): EditorView | null;
+  scrollElement(): HTMLElement | null;
 }
 
 interface Props {
@@ -150,6 +151,9 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor(
     },
     view() {
       return viewRef.current;
+    },
+    scrollElement() {
+      return viewRef.current?.scrollDOM ?? null;
     },
   }));
 

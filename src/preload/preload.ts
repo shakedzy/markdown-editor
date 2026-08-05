@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import {
   IpcChannels,
   FileResult,
+  FolderResult,
   SaveArgs,
   SaveAsArgs,
   SaveResult,
@@ -11,6 +12,8 @@ import {
 type MenuAction =
   | 'newFile'
   | 'openFile'
+  | 'openFolder'
+  | 'toggleFileTree'
   | 'save'
   | 'saveAs'
   | 'saveAndQuit'
@@ -32,6 +35,17 @@ const api = {
   platform: process.platform,
   openFile: (): Promise<FileResult | null> =>
     ipcRenderer.invoke(IpcChannels.FileOpen),
+  readFile: (path: string): Promise<FileResult | null> =>
+    ipcRenderer.invoke(IpcChannels.FileRead, path),
+  openFolder: (showHidden: boolean): Promise<FolderResult | null> =>
+    ipcRenderer.invoke(IpcChannels.FolderOpen, showHidden),
+  reopenFolder: (path: string, showHidden: boolean): Promise<FolderResult | null> =>
+    ipcRenderer.invoke(IpcChannels.FolderReopen, path, showHidden),
+  onFolderChanged: (cb: (folder: FolderResult) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, payload: FolderResult) => cb(payload);
+    ipcRenderer.on(IpcChannels.FolderChanged, listener);
+    return () => ipcRenderer.off(IpcChannels.FolderChanged, listener);
+  },
   saveFile: (args: SaveArgs): Promise<SaveResult> =>
     ipcRenderer.invoke(IpcChannels.FileSave, args),
   saveFileAs: (args: SaveAsArgs): Promise<SaveResult | null> =>

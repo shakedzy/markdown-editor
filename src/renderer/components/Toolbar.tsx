@@ -34,12 +34,16 @@ interface Props {
   dirty: boolean;
   viewMode: 'split' | 'tabs';
   tocVisible: boolean;
+  folderOpen: boolean;
+  fileTreeVisible: boolean;
   ghMode: boolean;
   onNew: () => void;
   onOpen: () => void;
+  onOpenFolder: () => void;
   onSave: () => void;
   onSaveAs: () => void;
   onToggleViewMode: () => void;
+  onToggleFileTree: () => void;
   onToggleToc: () => void;
   onToggleGh: () => void;
   onShowShortcuts: () => void;
@@ -52,12 +56,16 @@ export default function Toolbar(props: Props): JSX.Element {
     dirty,
     viewMode,
     tocVisible,
+    folderOpen,
+    fileTreeVisible,
     ghMode,
     onNew,
     onOpen,
+    onOpenFolder,
     onSave,
     onSaveAs,
     onToggleViewMode,
+    onToggleFileTree,
     onToggleToc,
     onToggleGh,
     onShowShortcuts,
@@ -71,6 +79,7 @@ export default function Toolbar(props: Props): JSX.Element {
       <div className="toolbar-left">
         <button type="button" onClick={onNew}>New</button>
         <button type="button" onClick={onOpen}>Open</button>
+        <button type="button" onClick={onOpenFolder}>Open Folder</button>
         <button type="button" onClick={onSave}>Save</button>
         <button type="button" onClick={onSaveAs}>Save As</button>
       </div>
@@ -99,6 +108,16 @@ export default function Toolbar(props: Props): JSX.Element {
         >
           <GearIcon />
         </button>
+        {folderOpen && (
+          <button
+            type="button"
+            className={fileTreeVisible ? 'active' : ''}
+            onClick={onToggleFileTree}
+            title="Toggle File Tree (Cmd/Ctrl+Shift+E)"
+          >
+            Files
+          </button>
+        )}
         <button
           type="button"
           className={tocVisible ? 'active' : ''}

@@ -25,6 +25,7 @@ const SECTIONS: Section[] = [
     items: [
       { keys: `${Mod}+N`, desc: 'New' },
       { keys: `${Mod}+O`, desc: 'Open' },
+      { keys: `${Mod}+${Shift}+O`, desc: 'Open Folder' },
       { keys: `${Mod}+S`, desc: 'Save' },
       { keys: `${Mod}+${Shift}+S`, desc: 'Save As' },
       { keys: `${Mod}+${Shift}+E`, desc: 'Export to PDF' },
@@ -52,6 +53,7 @@ const SECTIONS: Section[] = [
     title: 'View',
     items: [
       { keys: `${Mod}+\\`, desc: 'Toggle Split / Tabs' },
+      { keys: `${Mod}+${Shift}+E`, desc: 'Toggle File Tree' },
       { keys: `${Mod}+${Shift}+T`, desc: 'Toggle Table of Contents (TOC)' },
       { keys: `${Mod}+${Shift}+G`, desc: 'Toggle GH Ext (GitHub extensions)' },
       { keys: `${Mod}+R`, desc: 'Reload window' },

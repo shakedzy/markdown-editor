@@ -3,6 +3,8 @@ import { Menu, BrowserWindow, app, shell } from 'electron';
 export type MenuAction =
   | 'newFile'
   | 'openFile'
+  | 'openFolder'
+  | 'toggleFileTree'
   | 'save'
   | 'saveAs'
   | 'saveAndQuit'
@@ -56,6 +58,11 @@ export function buildAppMenu(getFocused: () => BrowserWindow | null): void {
       submenu: [
         { label: 'New', accelerator: 'CmdOrCtrl+N', click: send('newFile') },
         { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: send('openFile') },
+        {
+          label: 'Open Folder…',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: send('openFolder'),
+        },
         { type: 'separator' },
         { label: 'Save', accelerator: 'CmdOrCtrl+S', click: send('save') },
         {
@@ -118,6 +125,11 @@ export function buildAppMenu(getFocused: () => BrowserWindow | null): void {
           label: 'Toggle Split / Tabs',
           accelerator: 'CmdOrCtrl+\\',
           click: send('toggleViewMode'),
+        },
+        {
+          label: 'Toggle File Tree',
+          accelerator: 'CmdOrCtrl+Shift+E',
+          click: send('toggleFileTree'),
         },
         {
           label: 'Toggle Table of Contents (TOC)',
