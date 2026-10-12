@@ -1,4 +1,5 @@
 import { Menu, BrowserWindow, app } from 'electron';
+import { sendMenuAction } from './menu';
 
 export function configureSpellcheck(win: BrowserWindow): void {
   if (process.platform !== 'darwin') {
@@ -47,11 +48,7 @@ export function configureSpellcheck(win: BrowserWindow): void {
     template.push({ type: 'separator' });
     template.push({
       label: 'Take me there in the other pane',
-      click: () =>
-        win.webContents.send('menu:action', 'takeMeThere', {
-          x: params.x,
-          y: params.y,
-        }),
+      click: () => sendMenuAction(win, 'takeMeThere', { x: params.x, y: params.y }),
     });
 
     if (template.length === 0) return;

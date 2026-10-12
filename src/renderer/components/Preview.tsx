@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -9,27 +10,59 @@ import {
 } from 'react';
 import { renderMarkdown } from '../markdown/render';
 import { MIN_MATCH_LEN, normalizeForMatch } from '../markdown/locate';
+import { SourceAnchor, increasingAnchors } from '../scrollSync';
+import { stripUserContent } from '../links';
+import {
+  MermaidTheme,
+  appMermaidTheme,
+  diagramElement,
+  loadMermaid,
+  renderMermaid,
+} from '../mermaid';
+import { useLatest } from '../useLatest';
 
 interface Props {
   source: string;
   ghMode: boolean;
   basePath: string | null;
+  /**
+   * A task checkbox was clicked: `index` of `total` task checkboxes, and the
+   * state it should now have. Return false to reject the click.
+   */
+  onToggleTask?: (index: number, total: number, checked: boolean) => boolean;
+  /**
+   * Blocks may have moved: the preview re-rendered, a diagram or image
+   * finished, or a <details> opened or closed.
+   */
+  onLayoutChange?: () => void;
+  /** A link was clicked; gets its href. Links never navigate the page (it is the whole app). */
+  onFollowLink?: (href: string) => void;
 }
 
 export interface PreviewHandle {
   scrollToSlug(slug: string): void;
-  scrollToHeading(index: number): void;
+  /**
+   * Scroll the `index`-th heading into view. With `forSource`, the heading
+   * of that document: if the preview hasn't rendered it yet (it just
+   * replaced another), the scroll waits until it has.
+   */
+  scrollToHeading(index: number, forSource?: string): void;
+  /**
+   * Scroll to the element a link's #fragment names (a heading, a footnote, an
+   * HTML id or <a name>; '' is the top); false if there is none.
+   */
+  scrollToAnchor(fragment: string): boolean;
   headingIndexAtCoords(x: number, y: number): number;
   textAtCoords(x: number, y: number): string;
   revealText(opts: { snippet: string; headingIndex: number }): void;
   openSearch(): void;
   element(): HTMLDivElement | null;
-  /** The rendered markup (mermaid SVGs, KaTeX, and highlighting included). */
-  getHTML(): string;
+  /**
+   * The rendered blocks' source lines and offsets in the scrolled content,
+   * strictly increasing in both; measured once per layout.
+   */
+  sourceAnchors(): readonly SourceAnchor[];
 }
-
-type Mermaid = typeof import('mermaid').default;
-let mermaidPromise: Promise<Mermaid> | null = null;
 
 // Custom-highlight registry keys. The preview is read-only rendered HTML, so
 // search highlights text ranges via the CSS Custom Highlight API rather than
@@ -37,29 +70,23 @@ let mermaidPromise: Promise<Mermaid> | null = null;
 const HL_ALL = 'preview-search';
 const HL_ACTIVE = 'preview-search-active';
 
-function getMermaid(): Promise<Mermaid> {
-  if (!mermaidPromise) {
-    mermaidPromise = import('mermaid').then((mod) => {
-      const M = mod.default;
-      const isDark = document.documentElement.classList.contains('dark');
-      M.initialize({
-        startOnLoad: false,
-        securityLevel: 'strict',
-        theme: isDark ? 'dark' : 'default',
-      });
-      return M;
-    });
-  }
-  return mermaidPromise;
-}
-
 const Preview = forwardRef<PreviewHandle, Props>(function Preview(
-  { source, ghMode, basePath },
+  { source, ghMode, basePath, onToggleTask, onLayoutChange, onFollowLink },
   ref,
 ) {
   const [debounced, setDebounced] = useState(source);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const renderEpochRef = useRef(0);
+
+  const onLayoutChangeRef = useLatest(onLayoutChange);
+  // Bumped whenever blocks may have moved, which makes the scroll-sync anchors
+  // measured before stale.
+  const layoutRef = useRef(0);
+  const anchorsRef = useRef<{ key: string; anchors: readonly SourceAnchor[] } | null>(null);
+  const layoutChanged = useCallback(() => {
+    layoutRef.current++;
+    onLayoutChangeRef.current?.();
+  }, []);
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -88,6 +115,7 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
   const scrollRangeIntoView = useCallback((range: Range) => {
     const host = hostRef.current;
     if (!host) return;
+    openDetailsAround(range.startContainer, host);
     const rect = range.getBoundingClientRect();
     if (rect.width === 0 && rect.height === 0) return;
     const hostRect = host.getBoundingClientRect();
@@ -160,6 +188,49 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
     setSearchOpen(false);
   }, []);
 
+  // Clicking a task checkbox writes the change back to the source; the
+  // re-render then reflects it. The browser has already flipped the box by the
+  // time this runs, so `checked` is the new state. If the click can't be
+  // applied, preventDefault() reverts the box.
+  const onHostClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const box = e.target;
+      if (
+        !(box instanceof HTMLInputElement) ||
+        !box.classList.contains('task-list-item-checkbox')
+      ) {
+        // Links (SVG ones and image-map areas included) are followed by the app
+        // instead of navigating the page. One whose href the sanitizer dropped
+        // does nothing.
+        const link = box instanceof Element ? box.closest('a, area') : null;
+        const href = link?.getAttribute('href') ?? link?.getAttributeNS(XLINK_NS, 'href');
+        if (href != null) {
+          e.preventDefault();
+          onFollowLink?.(href);
+        }
+        return;
+      }
+      const host = hostRef.current;
+      const boxes = host
+        ? Array.from(host.querySelectorAll('input.task-list-item-checkbox'))
+        : [];
+      const index = boxes.indexOf(box);
+      // The preview trails the source by the render debounce; ignore clicks
+      // until it catches up so indices refer to the same document.
+      const applied =
+        debounced === source &&
+        index >= 0 &&
+        (onToggleTask?.(index, boxes.length, box.checked) ?? false);
+      if (!applied) e.preventDefault();
+    },
+    [debounced, source, onToggleTask, onFollowLink],
+  );
+
+  // A scroll meant for a document the preview hasn't rendered yet, and the
+  // source last rendered, which a scroll's document is checked against.
+  const pendingScrollRef = useRef<{ source: string; scroll: () => void } | null>(null);
+  const renderedRef = useLatest(debounced);
+
   useImperativeHandle(ref, () => ({
     scrollToSlug(slug: string) {
       const host = hostRef.current;
@@ -168,8 +239,8 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
       const el = host.querySelector<HTMLElement>(`#${escaped}`);
       el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
-    scrollToHeading(index: number) {
-      requestAnimationFrame(() => {
+    scrollToHeading(index: number, forSource?: string) {
+      const scroll = () => requestAnimationFrame(() => {
         const host = hostRef.current;
         if (!host) return;
         const headings = host.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6');
@@ -189,6 +260,33 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
           { once: true },
         );
       });
+      if (forSource !== undefined && forSource !== renderedRef.current) {
+        pendingScrollRef.current = { source: forSource, scroll };
+        return;
+      }
+      pendingScrollRef.current = null;
+      scroll();
+    },
+    scrollToAnchor(fragment: string) {
+      const host = hostRef.current;
+      if (!host) return false;
+      if (fragment === '') {
+        host.scrollTo({ top: 0, behavior: 'smooth' });
+        return true;
+      }
+      const target = anchorTarget(host, fragment);
+      if (!target) return false;
+      const offset =
+        target.getBoundingClientRect().top - host.getBoundingClientRect().top + host.scrollTop;
+      host.scrollTo({ top: Math.max(0, offset - 8), behavior: 'smooth' });
+      const flash = /^H[1-6]$/.test(target.tagName) ? 'heading-flash' : 'text-flash';
+      target.classList.remove(flash);
+      void target.offsetHeight;
+      target.classList.add(flash);
+      target.addEventListener('animationend', () => target.classList.remove(flash), {
+        once: true,
+      });
+      return true;
     },
     headingIndexAtCoords(_x: number, y: number) {
       const host = hostRef.current;
@@ -288,55 +386,173 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
     element() {
       return hostRef.current;
     },
-    getHTML() {
-      return hostRef.current?.innerHTML ?? '';
+    sourceAnchors() {
+      const host = hostRef.current;
+      if (!host) return [];
+      // Reflow (a resized pane, fonts arriving late) moves blocks too.
+      const key = `${layoutRef.current}:${host.clientWidth}:${host.scrollHeight}`;
+      if (anchorsRef.current?.key !== key) {
+        anchorsRef.current = { key, anchors: measureAnchors(host) };
+      }
+      return anchorsRef.current.anchors;
     },
   }));
 
+  // The front matter block comes back open on every re-render; remember that
+  // the user collapsed it so typing doesn't keep expanding it.
+  const frontMatterOpenRef = useRef(true);
+
   useEffect(() => {
-    if (!hostRef.current) return;
-    const blocks = Array.from(
-      hostRef.current.querySelectorAll<HTMLElement>('pre code.language-mermaid'),
-    );
-    if (blocks.length === 0) return;
+    const host = hostRef.current;
+    if (!host) return;
+    const onToggle = (e: Event) => {
+      const el = e.target;
+      if (el instanceof HTMLDetailsElement && el.classList.contains('frontmatter')) {
+        frontMatterOpenRef.current = el.open;
+      }
+    };
+    // `toggle` doesn't bubble.
+    host.addEventListener('toggle', onToggle, true);
+    return () => host.removeEventListener('toggle', onToggle, true);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (frontMatterOpenRef.current) return;
+    hostRef.current?.querySelector('details.frontmatter')?.removeAttribute('open');
+  }, [html]);
+
+  useEffect(() => layoutChanged(), [html, layoutChanged]);
+
+  // A waiting scroll runs once the preview has caught up with its source, if
+  // that is the document it was meant for (not one typed since).
+  useEffect(() => {
+    const pending = pendingScrollRef.current;
+    if (!pending || debounced !== source) return;
+    pendingScrollRef.current = null;
+    if (pending.source === debounced) pending.scroll();
+  }, [html, debounced, source]);
+
+  // The natural sizes of the last render's images, by URL. A re-render gives
+  // an image that has to load again (one dropped from the memory cache) its
+  // size until it arrives, so the content below it doesn't collapse and then
+  // jump back.
+  const imageSizesRef = useRef(new Map<string, [number, number]>());
+  // The attributes each image's stand-in added, to take off once it loads.
+  const standInsRef = useRef(new WeakMap<HTMLImageElement, string[]>());
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const previous = imageSizesRef.current;
+    const sizes = new Map<string, [number, number]>();
+    imageSizesRef.current = sizes;
+    for (const img of host.querySelectorAll('img')) {
+      const size = previous.get(img.src);
+      if (!size) continue;
+      sizes.set(img.src, size);
+      if (img.complete) continue;
+      const [width, height] = size;
+      const ownWidth = img.hasAttribute('width');
+      const ownHeight = img.hasAttribute('height');
+      if (!ownWidth && !ownHeight) {
+        img.width = width;
+        img.height = height;
+        standInsRef.current.set(img, ['width', 'height']);
+      } else if (ownWidth !== ownHeight && !img.hasAttribute('style')) {
+        // The author's width or height alone gives no shape until the image
+        // loads. (The preview's `height: auto` overrides a height, so then
+        // the width is the image's own too.)
+        img.style.aspectRatio = `${width} / ${height}`;
+        if (ownWidth) {
+          standInsRef.current.set(img, ['style']);
+        } else {
+          img.width = width;
+          standInsRef.current.set(img, ['style', 'width']);
+        }
+      }
+    }
+  }, [html]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const onImage = (e: Event) => {
+      const img = e.target;
+      if (!(img instanceof HTMLImageElement)) return;
+      // Loaded (or failed), it lays out by its own size again.
+      for (const name of standInsRef.current.get(img) ?? []) img.removeAttribute(name);
+      standInsRef.current.delete(img);
+      if (e.type === 'load' && img.naturalWidth > 0 && img.naturalHeight > 0) {
+        imageSizesRef.current.set(img.src, [img.naturalWidth, img.naturalHeight]);
+      }
+      layoutChanged();
+    };
+    // None of these bubble.
+    host.addEventListener('load', onImage, true);
+    host.addEventListener('error', onImage, true);
+    host.addEventListener('toggle', layoutChanged, true);
+    return () => {
+      host.removeEventListener('load', onImage, true);
+      host.removeEventListener('error', onImage, true);
+      host.removeEventListener('toggle', layoutChanged, true);
+    };
+  }, [layoutChanged]);
+
+  // The last render's diagrams, by theme and source. A re-render puts them
+  // back before the preview is laid out, so what's below a diagram doesn't
+  // move while its code block waits to be drawn again.
+  const drawingsRef = useRef(new Map<string, Drawing>());
+
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const theme = appMermaidTheme();
+    const previous = drawingsRef.current;
+    const drawings = new Map<string, Drawing>();
+    drawingsRef.current = drawings;
+    const pending: { block: HTMLElement; code: string; key: string }[] = [];
+    for (const block of host.querySelectorAll<HTMLElement>('pre code.language-mermaid')) {
+      const code = block.textContent ?? '';
+      const key = `${theme}\n${code}`;
+      const drawing = previous.get(key);
+      if (drawing) {
+        drawings.set(key, drawing);
+        replaceCodeBlock(block, drawingElement(drawing, code, theme));
+      } else {
+        pending.push({ block, code, key });
+      }
+    }
+    if (pending.length === 0) return;
 
     const epoch = ++renderEpochRef.current;
     let cancelled = false;
 
     void (async () => {
-      let M: Mermaid;
       try {
-        M = await getMermaid();
+        await loadMermaid();
       } catch (err) {
         console.error('Failed to load mermaid:', err);
         return;
       }
-      for (let i = 0; i < blocks.length; i++) {
+      for (const { block, code, key } of pending) {
         if (cancelled || epoch !== renderEpochRef.current) return;
-        const block = blocks[i]!;
-        const code = block.textContent ?? '';
-        const id = `mermaid-${epoch}-${i}`;
+        let drawing: Drawing;
         try {
-          const { svg } = await M.render(id, code);
-          if (cancelled || epoch !== renderEpochRef.current) return;
-          const wrapper = document.createElement('div');
-          wrapper.className = 'mermaid-rendered';
-          wrapper.innerHTML = svg;
-          block.closest('pre')?.replaceWith(wrapper);
+          drawing = { svg: await renderMermaid(code, theme) };
         } catch (err) {
-          if (cancelled || epoch !== renderEpochRef.current) return;
-          const errBox = document.createElement('div');
-          errBox.className = 'mermaid-error';
-          errBox.textContent = `Mermaid error: ${(err as Error).message ?? String(err)}`;
-          block.closest('pre')?.replaceWith(errBox);
+          drawing = { error: (err as Error).message ?? String(err) };
         }
+        if (cancelled || epoch !== renderEpochRef.current) return;
+        drawings.set(key, drawing);
+        replaceCodeBlock(block, drawingElement(drawing, code, theme));
+        layoutChanged();
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [html]);
+  }, [html, layoutChanged]);
 
   const countLabel = query
     ? matchCount > 0
@@ -400,10 +616,76 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
       <div
         ref={hostRef}
         className="preview"
+        onClick={onHostClick}
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>
   );
 });
+
+const XLINK_NS = 'http://www.w3.org/1999/xlink';
+
+/**
+ * The element a link's #fragment names: by id (headings, footnotes) or, as
+ * in older HTML, an <a name>. GitHub's "user-content-" prefix and other
+ * letter cases are tried too.
+ */
+function anchorTarget(host: HTMLElement, fragment: string): HTMLElement | null {
+  const named = host.querySelectorAll<HTMLElement>('[id], a[name]');
+  const slug = stripUserContent(fragment);
+  for (const wanted of [fragment, slug, slug.toLowerCase()]) {
+    for (const el of named) {
+      if (el.id === wanted || (el.tagName === 'A' && el.getAttribute('name') === wanted)) return el;
+    }
+  }
+  return null;
+}
+
+// A diagram, or the error mermaid gave for its code.
+type Drawing = { svg: string } | { error: string };
+
+function drawingElement(drawing: Drawing, code: string, theme: MermaidTheme): HTMLElement {
+  if ('svg' in drawing) return diagramElement(drawing.svg, code, theme);
+  const errBox = document.createElement('div');
+  errBox.className = 'mermaid-error';
+  errBox.textContent = `Mermaid error: ${drawing.error}`;
+  return errBox;
+}
+
+/**
+ * Open the collapsed <details> (the front matter block, say) that hide `node`,
+ * as the browser's find does, so a match there can be shown.
+ */
+function openDetailsAround(node: Node, host: HTMLElement): void {
+  for (let el = node.parentElement; el && el !== host; el = el.parentElement) {
+    if (
+      el instanceof HTMLDetailsElement &&
+      !el.open &&
+      !el.querySelector(':scope > summary')?.contains(node)
+    ) {
+      el.open = true;
+    }
+  }
+}
+
+/** Swap a code block (given its <code>) for `el`, keeping the block's source line. */
+function replaceCodeBlock(code: HTMLElement, el: HTMLElement): void {
+  const pre = code.closest('pre');
+  if (!pre) return;
+  if (pre.dataset.line) el.dataset.line = pre.dataset.line;
+  pre.replaceWith(el);
+}
+
+/** Each block tagged with its source line, and where it sits in `host`'s scrolled content. */
+function measureAnchors(host: HTMLElement): SourceAnchor[] {
+  const origin = host.getBoundingClientRect().top + host.clientTop - host.scrollTop;
+  const anchors: SourceAnchor[] = [];
+  for (const el of host.querySelectorAll<HTMLElement>('[data-line]')) {
+    // Blocks inside a closed <details> have no box.
+    const box = el.getClientRects()[0];
+    if (box) anchors.push({ line: Number(el.dataset.line), top: box.top - origin });
+  }
+  return increasingAnchors(anchors);
+}
 
 export default Preview;

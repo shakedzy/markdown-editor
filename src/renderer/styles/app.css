@@ -10,7 +10,7 @@
   --color-tab-hover: rgba(0, 0, 0, 0.04);
   --color-flash: rgba(31, 111, 235, 0.32);
   --toolbar-height: 44px;
-  --toc-width: 240px;
+  --sidebar-width: 240px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
     Helvetica, Arial, sans-serif;
 }
@@ -238,13 +238,17 @@ button.active {
 }
 
 .app {
-  display: grid;
-  grid-template-rows: var(--toolbar-height) 1fr;
+  /* A column so optional rows (banner, status bar) stack in DOM order around
+     the flexible .main without redeclaring tracks. */
+  display: flex;
+  flex-direction: column;
   height: 100%;
   width: 100%;
 }
 
 .toolbar {
+  flex-shrink: 0;
+  height: var(--toolbar-height);
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -261,18 +265,35 @@ button.active {
   align-items: center;
 }
 
-.toolbar-right {
-  justify-content: flex-end;
-  flex-wrap: wrap;
+/* One row always (the toolbar's height is fixed); a long file name gives way. */
+.toolbar button {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
+.toolbar-right {
+  justify-content: flex-end;
+}
+
+/* A long file name is cut short, but never the unsaved-changes dot after it. */
 .toolbar-center {
-  text-align: center;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  white-space: nowrap;
   color: var(--color-text-muted);
+  font-weight: 500;
 }
 
 .toolbar .filename {
-  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toolbar .dirty-dot {
+  flex-shrink: 0;
+  margin-left: 0.3em;
 }
 
 .view-toggle {
@@ -309,6 +330,237 @@ button.active {
   background: var(--color-accent-soft);
   border-color: var(--color-accent);
   color: var(--color-accent);
+}
+
+/* Auto-save toggle (components/Toolbar.tsx). The off track keeps 3:1
+   contrast with the toolbar; paused takes the warning banner's colors. */
+.autosave-toggle {
+  --switch-track: #818b98;
+  --autosave-paused: #9a6700;
+  --autosave-paused-bg: #fff8c5;
+  margin-left: 4px;
+}
+
+:root.dark .autosave-toggle {
+  --switch-track: #6e7681;
+  --autosave-paused: #d29922;
+  --autosave-paused-bg: rgba(187, 128, 9, 0.15);
+}
+
+.autosave-switch {
+  position: relative;
+  flex-shrink: 0;
+  width: 24px;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--switch-track);
+  transition: background-color 0.15s ease-out;
+}
+
+.autosave-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.15s ease-out;
+}
+
+.autosave-toggle.active .autosave-switch {
+  background: var(--color-accent);
+}
+
+.autosave-toggle.active .autosave-switch::after {
+  transform: translateX(10px);
+}
+
+/* On, but paused until the user acts (the tooltip says how): amber, with a
+   pause sign on the knob. */
+.autosave-toggle.paused {
+  background: var(--autosave-paused-bg);
+  border-color: var(--autosave-paused);
+  color: var(--autosave-paused);
+}
+
+.autosave-toggle.paused .autosave-switch {
+  background: var(--autosave-paused);
+}
+
+.autosave-toggle.paused .autosave-switch::after {
+  background:
+    linear-gradient(
+        to right,
+        transparent 2px,
+        var(--autosave-paused) 2px 4px,
+        transparent 4px 6px,
+        var(--autosave-paused) 6px 8px,
+        transparent 8px
+      )
+      center / 100% 6px no-repeat,
+    #ffffff;
+}
+
+/* Narrow windows, and zoomed-in ones, keep every control on one row: tighter
+   spacing, then fewer buttons, the least needed first. Each one hidden is in
+   the menus with its shortcut. The Auto-save switch keeps its label. */
+@media (max-width: 960px) {
+  .toolbar {
+    gap: 8px;
+    padding: 0 8px;
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    gap: 4px;
+  }
+
+  .toolbar button:not(.icon-button) {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .gh-label {
+    display: none;
+  }
+}
+
+@media (max-width: 800px) {
+  .toolbar .save-as-button {
+    display: none;
+  }
+}
+
+/* From here on, the 720px minimum zoomed to 110% and beyond. */
+@media (max-width: 660px) {
+  .toolbar .file-button {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .toolbar-right > .icon-button {
+    display: none;
+  }
+}
+
+@media (max-width: 440px) {
+  .toolbar .panel-toggle,
+  .toolbar .gh-toggle {
+    display: none;
+  }
+}
+
+@media (max-width: 300px) {
+  .toolbar .view-toggle {
+    display: none;
+  }
+}
+
+/* Notice bar under the toolbar (components/Banner.tsx) */
+.banner {
+  --banner-bg: var(--color-accent-soft);
+  --banner-border: rgba(84, 174, 255, 0.4);
+  --banner-icon: var(--color-accent);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 5px 10px 5px 14px;
+  background: var(--banner-bg);
+  border-bottom: 1px solid var(--banner-border);
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.banner-warning {
+  --banner-bg: #fff8c5;
+  --banner-border: rgba(212, 167, 44, 0.4);
+  --banner-icon: #9a6700;
+}
+
+.banner-error {
+  --banner-bg: #ffebe9;
+  --banner-border: rgba(255, 129, 130, 0.4);
+  --banner-icon: #d1242f;
+}
+
+:root.dark .banner-info {
+  --banner-bg: rgba(56, 139, 253, 0.1);
+  --banner-border: rgba(56, 139, 253, 0.4);
+}
+
+:root.dark .banner-warning {
+  --banner-bg: rgba(187, 128, 9, 0.15);
+  --banner-border: rgba(187, 128, 9, 0.4);
+  --banner-icon: #d29922;
+}
+
+:root.dark .banner-error {
+  --banner-bg: rgba(248, 81, 73, 0.1);
+  --banner-border: rgba(248, 81, 73, 0.4);
+  --banner-icon: #f85149;
+}
+
+.banner-icon {
+  flex-shrink: 0;
+  fill: var(--banner-icon);
+}
+
+.banner-message {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.banner-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.banner-button {
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--color-bg);
+  border-color: var(--color-border);
+}
+
+.banner-button:hover {
+  background: var(--color-bg-soft);
+  border-color: var(--color-text-muted);
+}
+
+.banner-button.primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #ffffff;
+}
+
+.banner-button.primary:hover {
+  filter: brightness(1.1);
+}
+
+.banner-close {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--color-text-muted);
+}
+
+.banner-close:hover {
+  background: var(--color-hover-overlay);
+  border-color: transparent;
+  color: var(--color-text);
 }
 
 /* Settings dialog */
@@ -413,19 +665,55 @@ button.active {
   accent-color: var(--color-accent);
 }
 
+.settings-text {
+  font: inherit;
+  font-size: 13px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  min-width: 0;
+}
+
+.settings-text:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
 .main {
+  position: relative;
+  flex: 1;
   display: flex;
   min-height: 0;
   overflow: hidden;
 }
 
-.app .toc {
-  flex: 0 0 var(--toc-width);
+/* The Files panel and the TOC share one column, each scrolling on its own;
+   small windows narrow it a little. */
+.sidebar {
+  flex: 0 0 clamp(150px, 25vw, var(--sidebar-width));
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--color-border);
   background: var(--color-bg-soft);
+}
+
+.sidebar[hidden] {
+  display: none;
+}
+
+.app .toc {
+  flex: 1 1 0;
+  min-height: 0;
   overflow: auto;
   display: flex;
   flex-direction: column;
+}
+
+.app .files-panel:not([hidden]) + .toc {
+  border-top: 1px solid var(--color-border);
 }
 
 .toc-header {
@@ -473,6 +761,158 @@ button.active {
 .toc-level-4 button { padding-left: 48px; font-size: 12px; color: var(--color-text-muted); }
 .toc-level-5 button { padding-left: 60px; font-size: 12px; color: var(--color-text-muted); }
 .toc-level-6 button { padding-left: 72px; font-size: 12px; color: var(--color-text-muted); }
+
+/* Files panel (components/FilesPanel.tsx), styled after the TOC below it */
+.app .files-panel {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Stays mounted while hidden, so expanded folders survive toggling it. */
+.app .files-panel[hidden] {
+  display: none;
+}
+
+.files-header {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  padding: 7px 6px 4px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.files-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
+/* Keeps the header as tall as the TOC's when it shows no buttons. */
+.files-title:only-child {
+  line-height: 24px;
+}
+
+.files-header-button {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+
+.files-header-button:hover {
+  background: var(--color-hover-overlay);
+  border-color: transparent;
+  color: var(--color-text);
+}
+
+.files-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 0;
+}
+
+.files-row {
+  --level: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px 0 calc(6px + (var(--level) - 1) * 12px);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+}
+
+.files-row:hover {
+  background: var(--color-hover-overlay);
+}
+
+.files-row:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.files-row.current {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.files-chevron {
+  flex: 0 0 12px;
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+.files-chevron svg {
+  transition: transform 0.1s ease-out;
+}
+
+.files-row[aria-expanded="true"] .files-chevron svg {
+  transform: rotate(90deg);
+}
+
+.files-icon {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.files-row.current .files-icon {
+  color: inherit;
+}
+
+.files-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files-note,
+.files-empty {
+  margin: 0;
+  padding: 12px 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.files-tree + .files-note {
+  flex-shrink: 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.files-empty p {
+  margin: 0 0 10px;
+}
+
+.files-open-button {
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border-color: var(--color-border);
+}
+
+.files-open-button:hover {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
 
 .workspace-container {
   flex: 1;
@@ -585,6 +1025,7 @@ button.active {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 6px;
   flex-shrink: 0;
   min-height: 30px;
   padding: 3px 8px 3px 12px;
@@ -592,7 +1033,12 @@ button.active {
   border-bottom: 1px solid var(--color-border);
 }
 
+/* A narrow pane cuts its label short rather than its buttons. */
 .pane-header-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.04em;
@@ -616,6 +1062,82 @@ button.active {
   color: var(--color-accent);
   border-color: var(--color-accent);
   background: var(--color-accent-soft);
+}
+
+.pane-header-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Scroll sync toggle; `button.active` colors it while on. */
+.pane-sync {
+  padding: 2px 6px;
+  color: var(--color-text-muted);
+}
+
+/* Status bar (components/StatusBar.tsx) */
+.status-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 24px;
+  padding: 0 12px;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg-soft);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  user-select: none;
+}
+
+.status-bar-item {
+  flex-shrink: 0;
+}
+
+.status-bar-stats {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Takes the free middle, so it and everything after it sit on the right. */
+.status-bar-flash {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+  color: var(--color-accent);
+}
+
+.status-bar-flash-message {
+  animation: status-flash-in 0.15s ease-out;
+}
+
+@keyframes status-flash-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.status-bar-zoom {
+  flex-shrink: 0;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: inherit;
+}
+
+.status-bar-zoom:hover {
+  background: var(--color-hover-overlay);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
 .preview-container {
@@ -736,4 +1258,404 @@ button.active {
 :root.dark .editor-host .cm-focused .cm-selectionBackground,
 :root.dark .editor-host .cm-selectionBackground {
   background-color: #264f78 !important;
+}
+
+/* Vim mode: the block cursor, and the mode line / command line below the editor. */
+.editor-host .cm-editor.cm-focused .cm-fat-cursor {
+  background: var(--color-accent);
+}
+
+/* Vim mode draws the selection behind the text, where the dark content
+   background would hide it; the editor behind is the same color. */
+:root.dark .editor-host .cm-scroller:has(> .cm-selectionLayer) .cm-content {
+  background: transparent !important;
+}
+
+/* Vim colors the letter under the block like the text, or hides it (transparent)
+   behind the half-height cursor of a pending operator. */
+.editor-host .cm-editor.cm-focused .cm-fat-cursor:not([style*='transparent']) {
+  color: var(--color-bg) !important;
+}
+
+.editor-host .cm-editor:not(.cm-focused) .cm-fat-cursor {
+  outline-color: var(--color-text-muted);
+}
+
+.editor-host .cm-panels-bottom {
+  border-top-color: var(--color-border);
+}
+
+.editor-host .cm-vim-panel {
+  align-items: center;
+  min-height: 24px;
+  padding: 0 12px;
+  background: var(--color-bg-soft);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 12px;
+}
+
+/* Vim sets a generic monospace font inline on its command line. */
+.editor-host .cm-vim-panel span {
+  font-family: inherit !important;
+}
+
+.editor-host .cm-vim-panel input {
+  color: var(--color-text);
+  font: inherit;
+}
+
+/* Vim colors its messages a fixed red inline. */
+.editor-host .cm-vim-message {
+  color: #d1242f !important;
+}
+
+:root.dark .editor-host .cm-vim-message {
+  color: #f85149 !important;
+}
+
+/* Focus mode (App.tsx): the editor alone, its text in a centered column, and
+   every paragraph but the caret's dimmed (editor/focusMode.ts). */
+.app.focus-mode {
+  --focus-dim-opacity: 0.3;
+}
+
+:root.dark .app.focus-mode {
+  --focus-dim-opacity: 0.35;
+}
+
+/* Warning and error banners stay: they say when auto-save has stopped. */
+.app.focus-mode .toolbar,
+.app.focus-mode .banner-info,
+.app.focus-mode .sidebar,
+.app.focus-mode .files-panel,
+.app.focus-mode .toc,
+.app.focus-mode .tab-strip,
+.app.focus-mode .pane-header,
+.app.focus-mode .workspace-divider,
+.app.focus-mode .workspace-preview {
+  display: none;
+}
+
+/* Of the status bar, only its passing messages (e.g. "Typewriter mode on"),
+   floating over the bottom of the editor. */
+.app.focus-mode .status-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 32px;
+  z-index: 10;
+  max-width: calc(100vw - 48px);
+  height: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.app.focus-mode .status-bar > :not(.status-bar-flash) {
+  display: none;
+}
+
+.app.focus-mode .status-bar-flash:not(:empty) {
+  padding: 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* A plain row instead of the split grid (whose columns are set inline), with
+   the editor showing even if the Preview tab was. */
+.app.focus-mode .workspace {
+  display: flex;
+}
+
+.app.focus-mode .workspace .workspace-pane.workspace-editor {
+  display: flex;
+  flex: 1;
+}
+
+.app.focus-mode .editor-host .cm-gutters {
+  display: none;
+}
+
+.app.focus-mode .editor-host .cm-content {
+  max-width: calc(72ch + 48px);
+  margin: 0 auto;
+  padding: 48px 24px;
+  line-height: 1.75;
+}
+
+.app.focus-mode .editor-host .cm-line.cm-activeLine {
+  background: transparent;
+}
+
+.app.focus-mode .editor-host .cm-line {
+  transition: opacity 0.2s ease-out;
+}
+
+.app.focus-mode .editor-host .cm-line.cm-focusDimmed {
+  opacity: var(--focus-dim-opacity);
+}
+
+/* Focus mode's way out (components/FocusExit.tsx), at the top right of
+   .main so a banner above doesn't hide it. */
+.focus-exit {
+  position: absolute;
+  top: 10px;
+  right: 24px;
+  z-index: 10;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  background: var(--color-bg);
+  border-color: var(--color-border);
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+
+.focus-exit.visible,
+.focus-exit:focus-visible {
+  opacity: 1;
+}
+
+.focus-exit:hover {
+  color: var(--color-text);
+}
+
+/* Out of the way of the search panel and its close button; Escape closes it. */
+.app:has(.cm-panels-top) .focus-exit {
+  display: none;
+}
+
+/* Markdown lint (editor/lint.ts): squiggles, gutter markers, the hover
+   tooltip and the list of warnings. CodeMirror's base theme colors them for
+   a light editor only; these selectors are more specific than it. */
+:root {
+  --lint-warning: #9a6700;
+  --lint-info: #6e7781;
+  --lint-warning-squiggle: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='3'><path d='m0 2.5 l2 -1.5 l1 0 l2 1.5 l1 0' stroke='%23bf8700' fill='none' stroke-width='.8'/></svg>");
+  --lint-info-squiggle: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='3'><path d='m0 2.5 l2 -1.5 l1 0 l2 1.5 l1 0' stroke='%238c959f' fill='none' stroke-width='.8'/></svg>");
+}
+
+:root.dark {
+  --lint-warning: #d29922;
+  --lint-info: #8b949e;
+  --lint-warning-squiggle: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='3'><path d='m0 2.5 l2 -1.5 l1 0 l2 1.5 l1 0' stroke='%23d29922' fill='none' stroke-width='.8'/></svg>");
+  --lint-info-squiggle: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='6' height='3'><path d='m0 2.5 l2 -1.5 l1 0 l2 1.5 l1 0' stroke='%236e7681' fill='none' stroke-width='.8'/></svg>");
+}
+
+.editor-host .cm-editor .cm-lintRange-warning {
+  background-image: var(--lint-warning-squiggle);
+}
+
+.editor-host .cm-editor .cm-lintRange-info {
+  background-image: var(--lint-info-squiggle);
+}
+
+:root.dark .editor-host .cm-editor .cm-lintRange-active {
+  background-color: rgba(187, 128, 9, 0.3);
+}
+
+/* Drawn in the severity's color through an icon-shaped mask. */
+.editor-host .cm-editor .cm-lint-marker {
+  content: normal;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  mask: center / contain no-repeat;
+}
+
+.editor-host .cm-editor .cm-lint-marker-warning {
+  background-color: var(--lint-warning);
+  mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill-rule='evenodd' d='M8 1 15.5 14.5H.5ZM7.25 5.5v4.5h1.5V5.5Zm0 5.75v1.5h1.5v-1.5Z'/></svg>");
+}
+
+.editor-host .cm-editor .cm-lint-marker-info {
+  background-color: var(--lint-info);
+  mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill-rule='evenodd' d='M8 .5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 0 0-15ZM7.25 7v5h1.5V7Zm0-3v1.5h1.5V4Z'/></svg>");
+}
+
+/* Hover tooltip (hosted in .cm-tooltip-hover) and the gutter marker's own. */
+.editor-host .cm-tooltip:has(> .cm-tooltip-lint),
+.editor-host .cm-tooltip.cm-tooltip-lint {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.editor-host .cm-tooltip-lint,
+.editor-host .cm-panel-lint {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.editor-host .cm-editor .cm-diagnostic {
+  padding: 4px 10px 4px 8px;
+  border-left-width: 3px;
+}
+
+.editor-host .cm-editor .cm-diagnostic-warning {
+  border-left-color: var(--lint-warning);
+}
+
+.editor-host .cm-editor .cm-diagnostic-info {
+  border-left-color: var(--lint-info);
+}
+
+/* Not the app's flex button: its access-key <u> runs on into the label. */
+.editor-host .cm-editor .cm-diagnosticAction {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--color-accent);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.editor-host .cm-editor .cm-panel.cm-panel-lint {
+  background: var(--color-bg-soft);
+  color: var(--color-text);
+}
+
+.editor-host .cm-editor .cm-panel.cm-panel-lint ul {
+  max-height: 140px;
+}
+
+.editor-host .cm-editor .cm-panel.cm-panel-lint ul [aria-selected] {
+  background: var(--color-hover-overlay);
+}
+
+.editor-host .cm-editor .cm-panel.cm-panel-lint ul:focus [aria-selected] {
+  background: var(--color-accent-soft);
+  color: inherit;
+}
+
+.editor-host .cm-editor .cm-panel.cm-panel-lint [name='close'] {
+  top: 2px;
+  right: 6px;
+  padding: 0 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 16px;
+}
+
+.editor-host .cm-editor .cm-panel.cm-panel-lint [name='close']:hover {
+  color: var(--color-text);
+}
+
+/* The status bar's warning count (components/LintStatus.tsx). */
+.status-bar-lint {
+  flex-shrink: 0;
+  height: 18px;
+  padding: 0 6px;
+  gap: 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: inherit;
+}
+
+.status-bar-lint:hover {
+  background: var(--color-hover-overlay);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+.status-bar-lint-warnings,
+.status-bar-lint-infos {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.status-bar-lint-warnings svg {
+  color: var(--lint-warning);
+}
+
+/* Link completion (editor/linkComplete.ts), styled like the lint tooltip.
+   CodeMirror's base theme colors the list for a light editor only. */
+.editor-host .cm-tooltip.cm-tooltip-autocomplete {
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-bg);
+  color: var(--color-text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.editor-host .cm-tooltip.cm-tooltip-autocomplete > ul {
+  max-width: min(560px, 80vw);
+  max-height: 16em;
+  font-family: inherit;
+}
+
+.editor-host .cm-tooltip.cm-tooltip-autocomplete > ul > li {
+  padding: 2px 10px 2px 6px;
+  line-height: 1.5;
+}
+
+.editor-host .cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+.editor-host .cm-tooltip.cm-tooltip-autocomplete > ul > completion-section {
+  padding: 4px 8px 2px;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  opacity: 1;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 11px;
+}
+
+.editor-host .cm-tooltip-autocomplete .cm-completionMatchedText {
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.editor-host .cm-tooltip-autocomplete .cm-completionDetail {
+  margin-left: 1em;
+  font-style: normal;
+  color: var(--color-text-muted);
+}
+
+.editor-host .cm-tooltip-autocomplete li[aria-selected] .cm-completionDetail {
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* What each option is: a heading anchor, a folder, a Markdown file or an image. */
+.editor-host .cm-tooltip-autocomplete .cm-completionIcon-anchor,
+.editor-host .cm-tooltip-autocomplete .cm-completionIcon-folder,
+.editor-host .cm-tooltip-autocomplete .cm-completionIcon-file,
+.editor-host .cm-tooltip-autocomplete .cm-completionIcon-image {
+  width: 13px;
+  height: 13px;
+  padding: 0;
+  margin-right: 6px;
+  vertical-align: -2px;
+  opacity: 0.7;
+  background-color: currentColor;
+  mask: center / contain no-repeat;
+}
+
+.editor-host .cm-tooltip-autocomplete .cm-completionIcon-anchor {
+  mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill-rule='evenodd' d='M6.1 1h1.5l-.6 4h3l.6-4h1.5l-.6 4H15v1.5h-2.7l-.45 3H15V11h-3.38l-.62 4H9.5l.62-4h-3l-.62 4H5l.62-4H1V9.5h4.85l.45-3H1V5h5.5ZM7.8 6.5l-.45 3h3l.45-3Z'/></svg>");
+}
+
+.editor-host .cm-tooltip-autocomplete .cm-completionIcon-folder {
+  mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M1 3.25C1 2.56 1.56 2 2.25 2h3.6l1.5 1.75h6.4c.69 0 1.25.56 1.25 1.25v7.75c0 .69-.56 1.25-1.25 1.25H2.25C1.56 14 1 13.44 1 12.75Z'/></svg>");
+}
+
+.editor-host .cm-tooltip-autocomplete .cm-completionIcon-file {
+  mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill-rule='evenodd' d='M3 1.75C3 1.34 3.34 1 3.75 1H9.6L13 4.4v9.85c0 .41-.34.75-.75.75h-8.5A.75.75 0 0 1 3 14.25ZM5 7v1.25h6V7Zm0 2.75V11h6V9.75Z'/></svg>");
+}
+
+.editor-host .cm-tooltip-autocomplete .cm-completionIcon-image {
+  mask-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path fill-rule='evenodd' d='M1 2.75C1 2.34 1.34 2 1.75 2h12.5c.41 0 .75.34.75.75v10.5c0 .41-.34.75-.75.75H1.75A.75.75 0 0 1 1 13.25ZM2.5 3.5v9h11v-9ZM3.5 11.5 6.5 8l2 2.25L10.5 8l2 3.5Zm7-5a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Z'/></svg>");
 }

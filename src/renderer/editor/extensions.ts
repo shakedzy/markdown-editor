@@ -13,6 +13,8 @@ import { search, searchKeymap } from '@codemirror/search';
 import { tags as t } from '@lezer/highlight';
 import { formattingKeymap } from './shortcuts';
 import { mditorTheme } from './theme';
+import { withFrontMatter } from './frontmatter';
+import { tableKeymap } from './tables';
 
 const headingOverrides = HighlightStyle.define([
   { tag: t.heading, fontWeight: 'bold' },
@@ -88,14 +90,54 @@ export function reconfigureHighlight(view: EditorView): void {
   });
 }
 
+const historyCompartment = new Compartment();
+
+/**
+ * Start the undo history over, e.g. once another document has replaced the
+ * editor's, so undo can't bring the previous one back.
+ */
+export function resetHistory(view: EditorView): void {
+  // Leaving the config drops the history; coming back starts it empty.
+  view.dispatch({ effects: historyCompartment.reconfigure([]) });
+  view.dispatch({ effects: historyCompartment.reconfigure(history()) });
+}
+
+const readOnlyCompartment = new Compartment();
+
+/**
+ * Refuse the user's edits, or take them again. Programmatic changes (e.g.
+ * replacing the document) still apply.
+ */
+export function setEditorReadOnly(view: EditorView, readOnly: boolean): void {
+  view.dispatch({ effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(readOnly)) });
+}
+
+// Built once: it's an immutable value, shared by the editor and the throwaway
+// states that only need a syntax tree.
+const documentLanguage = withFrontMatter(
+  markdown({ base: markdownLanguage, codeLanguages: languages, addKeymap: true }),
+);
+
+/**
+ * The document language alone: markdown behind optional YAML front matter.
+ * For throwaway states that only need a syntax tree; the editor uses the same
+ * value, so the two can't parse a document differently.
+ */
+export function buildLanguageExtensions(): Extension {
+  return documentLanguage;
+}
+
 export function buildExtensions(): Extension[] {
   return [
     lineNumbers(),
     highlightActiveLine(),
-    history(),
+    historyCompartment.of(history()),
+    readOnlyCompartment.of(EditorState.readOnly.of(false)),
     bracketMatching(),
     search({ top: true }),
-    markdown({ base: markdownLanguage, codeLanguages: languages, addKeymap: true }),
+    // Before the language, whose Enter (list continuation) is just as high.
+    tableKeymap,
+    buildLanguageExtensions(),
     highlightCompartment.of(pickHighlight()),
     EditorView.lineWrapping,
     EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }),

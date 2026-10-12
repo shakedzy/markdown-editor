@@ -24,6 +24,8 @@ function wrapSelection(
   before: string,
   after: string = before,
 ): boolean {
+  // Dispatching ignores readOnly: commands have to check it themselves.
+  if (view.state.readOnly) return false;
   const changes = view.state.changeByRange((range) => {
     if (range.empty) {
       return {

@@ -7,3 +7,4 @@ dist-renderer/
 .vscode/
 .idea/
 .claude/
+e2e/.output/

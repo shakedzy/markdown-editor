@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { shortcut } from '../platform';
 import { Settings } from '../settings';
 
 interface Props {
@@ -72,8 +73,9 @@ export default function SettingsDialog({ open, settings, onChange, onClose }: Pr
               All variants — <code>**</code>/<code>__</code>, <code>*</code>/
               <code>_</code>, <code>~</code>/<code>~~</code> — render correctly
               when typed manually. This setting only chooses which marker is
-              inserted by <kbd>⌘B</kbd> / <kbd>⌘I</kbd> / <kbd>⌘U</kbd> and{' '}
-              <em>Format → Strikethrough</em>. Changes apply immediately.
+              inserted by <kbd>{shortcut('Mod+B')}</kbd> / <kbd>{shortcut('Mod+I')}</kbd> /{' '}
+              <kbd>{shortcut('Mod+Shift+X')}</kbd> / <kbd>{shortcut('Mod+U')}</kbd> (and the
+              Format menu). Changes apply immediately.
             </p>
 
             <div className="settings-row">
@@ -156,6 +158,84 @@ export default function SettingsDialog({ open, settings, onChange, onClose }: Pr
                 onChange={(v) => update('theme', v)}
               />
             </div>
+          </section>
+
+          <section className="settings-section">
+            <h3>Editor</h3>
+            <p className="settings-hint">Applies immediately.</p>
+
+            <label className="settings-checkbox">
+              <input
+                type="checkbox"
+                checked={settings.scrollSync}
+                onChange={(e) => update('scrollSync', e.target.checked)}
+              />
+              <span>Sync scrolling between editor and preview (split view)</span>
+            </label>
+
+            <label className="settings-checkbox">
+              <input
+                type="checkbox"
+                checked={settings.typewriterMode}
+                onChange={(e) => update('typewriterMode', e.target.checked)}
+              />
+              <span>Typewriter mode (keep the cursor line centered)</span>
+            </label>
+
+            <label className="settings-checkbox">
+              <input
+                type="checkbox"
+                checked={settings.lintEnabled}
+                onChange={(e) => update('lintEnabled', e.target.checked)}
+              />
+              <span>Show Markdown lint warnings</span>
+            </label>
+
+            <label className="settings-checkbox">
+              <input
+                type="checkbox"
+                checked={settings.vimMode}
+                onChange={(e) => update('vimMode', e.target.checked)}
+              />
+              <span>Vim keybindings</span>
+            </label>
+          </section>
+
+          <section className="settings-section">
+            <h3>Files</h3>
+            <p className="settings-hint">
+              Each window has its own Auto-save toggle in the toolbar. This sets
+              the state it starts in whenever a file is opened or created.
+            </p>
+
+            <label className="settings-checkbox">
+              <input
+                type="checkbox"
+                checked={settings.autoSaveOnOpen}
+                onChange={(e) => update('autoSaveOnOpen', e.target.checked)}
+              />
+              <span>Auto-save on by default</span>
+            </label>
+
+            <div className="settings-row">
+              <label htmlFor="settings-image-folder" className="settings-label">
+                Images folder
+              </label>
+              <input
+                id="settings-image-folder"
+                type="text"
+                className="settings-text"
+                aria-describedby="settings-image-folder-hint"
+                value={settings.imageFolder}
+                placeholder="(same folder as the document)"
+                spellCheck={false}
+                onChange={(e) => update('imageFolder', e.target.value)}
+              />
+            </div>
+            <p id="settings-image-folder-hint" className="settings-hint settings-warn">
+              Pasted and dropped images are saved here, relative to the
+              document. Leave empty to save them next to the document.
+            </p>
           </section>
 
           <section className="settings-section">

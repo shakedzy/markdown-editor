@@ -56,10 +56,20 @@ function greet(name: string): string {
 }
 ```
 
+## Handy extras
+
+- **Auto-save:** flip the **Auto-save** switch in the toolbar (`Cmd/Ctrl+Shift+A`); Settings → Files turns it on for every file you open
+- **Files panel:** **File → Open Folder…** (`Cmd/Ctrl+Shift+O`) lists a folder's Markdown files on the left
+- **Focus mode:** `Cmd/Ctrl+Shift+Enter` hides everything but your text; `Esc` brings it all back
+- **Status bar:** words, characters and reading time at the bottom; select some text to count just that
+- **Copy as Rich Text:** `Cmd/Ctrl+Shift+C` copies the preview so it pastes formatted into Gmail, Docs or Slack
+- **Images:** paste a screenshot or drop an image into a saved document; it lands in an `assets` folder next to it
+- **Front matter:** start a file with a `---` YAML block; the preview shows it as a collapsible table
+
 ## Find your way around
 
 - **Keyboard shortcuts:** **Help → Keyboard Shortcuts** (or click the **?** in the toolbar)
-- **Find / Replace:** `Cmd/Ctrl+F` and `Cmd/Ctrl+Alt+F` inside the editor
+- **Find / Replace:** `Cmd/Ctrl+F` inside the editor (in the Preview tab, it searches the preview)
 - **Reload the window:** `Cmd/Ctrl+R` (also under View → Reload)
 
 [^1]: Footnotes appear at the bottom of the rendered output when `GH Ext` is on.

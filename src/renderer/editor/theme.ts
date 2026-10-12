@@ -30,4 +30,8 @@ export const mditorTheme = EditorView.theme({
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
     backgroundColor: '#cce5ff',
   },
+  // Vim mode draws the selection, which the base theme colors with this more specific selector.
+  '&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
+    backgroundColor: '#cce5ff',
+  },
 });

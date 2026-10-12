@@ -1,3 +1,6 @@
+import { displayName } from '../fileName';
+import { shortcut } from '../platform';
+
 function GitHubMark(): JSX.Element {
   return (
     <svg
@@ -29,17 +32,53 @@ function GearIcon(): JSX.Element {
   );
 }
 
+/**
+ * The Auto-save toggle's state: off, on and saving, or on but not saving
+ * right now, for the reason named.
+ */
+export type AutoSaveStatus =
+  | 'off'
+  | 'on'
+  | 'untitled'
+  | 'missing'
+  | 'conflict'
+  | 'failed'
+  | 'recovered';
+
+const AUTO_SAVE_TIPS: Record<AutoSaveStatus, string> = {
+  off: 'Auto-save is off',
+  on: 'Auto-save is on: changes are saved a moment after you stop typing',
+  untitled: 'Auto-save is on and starts once this document has been saved to a file',
+  missing: 'Auto-save is paused: the file was deleted or moved. Save to recreate it',
+  conflict: 'Auto-save is paused: the file changed on disk. Reload it or save your version to resume',
+  failed: 'Auto-save is paused because saving failed. Save to resume',
+  recovered: 'Auto-save is paused until you save the recovered changes',
+};
+
+// On, but not saving until the user acts. (Untitled is on too, with nothing
+// to save to yet.)
+const AUTO_SAVE_PAUSED: ReadonlySet<AutoSaveStatus> = new Set<AutoSaveStatus>([
+  'missing',
+  'conflict',
+  'failed',
+  'recovered',
+]);
+
 interface Props {
   filePath: string | null;
   dirty: boolean;
+  autoSaveStatus: AutoSaveStatus;
   viewMode: 'split' | 'tabs';
+  filesVisible: boolean;
   tocVisible: boolean;
   ghMode: boolean;
   onNew: () => void;
   onOpen: () => void;
   onSave: () => void;
   onSaveAs: () => void;
+  onToggleAutoSave: () => void;
   onToggleViewMode: () => void;
+  onToggleFiles: () => void;
   onToggleToc: () => void;
   onToggleGh: () => void;
   onShowShortcuts: () => void;
@@ -50,35 +89,57 @@ export default function Toolbar(props: Props): JSX.Element {
   const {
     filePath,
     dirty,
+    autoSaveStatus,
     viewMode,
+    filesVisible,
     tocVisible,
     ghMode,
     onNew,
     onOpen,
     onSave,
     onSaveAs,
+    onToggleAutoSave,
     onToggleViewMode,
+    onToggleFiles,
     onToggleToc,
     onToggleGh,
     onShowShortcuts,
     onShowSettings,
   } = props;
 
-  const fileName = filePath ? filePath.split(/[\\/]/).pop() : 'Untitled';
+  const fileName = displayName(filePath);
+  const autoSaveOn = autoSaveStatus !== 'off';
+  const autoSavePaused = AUTO_SAVE_PAUSED.has(autoSaveStatus);
 
   return (
     <header className="toolbar">
       <div className="toolbar-left">
-        <button type="button" onClick={onNew}>New</button>
-        <button type="button" onClick={onOpen}>Open</button>
-        <button type="button" onClick={onSave}>Save</button>
-        <button type="button" onClick={onSaveAs}>Save As</button>
+        <button type="button" className="file-button" onClick={onNew}>New</button>
+        <button type="button" className="file-button" onClick={onOpen}>Open</button>
+        <button type="button" className="file-button" onClick={onSave}>Save</button>
+        <button type="button" className="file-button save-as-button" onClick={onSaveAs}>
+          Save As
+        </button>
+        <button
+          type="button"
+          className={`autosave-toggle ${autoSaveOn ? 'active' : ''} ${
+            autoSaveOn && autoSaveStatus !== 'on' ? 'waiting' : ''
+          } ${autoSavePaused ? 'paused' : ''}`}
+          onClick={onToggleAutoSave}
+          aria-pressed={autoSaveOn}
+          aria-label={autoSavePaused ? 'Auto-save, paused' : 'Auto-save'}
+          title={`${AUTO_SAVE_TIPS[autoSaveStatus]} (${shortcut('Mod+Shift+A')})`}
+        >
+          <span className="autosave-switch" aria-hidden="true" />
+          <span className="autosave-label">Auto-save</span>
+        </button>
       </div>
       <div className="toolbar-center">
-        <span className="filename">
+        {/* Narrow windows cut a long name short; the full path is on hover. */}
+        <span className="filename" title={filePath ?? undefined}>
           {fileName}
-          {dirty ? ' •' : ''}
         </span>
+        {dirty && <span className="dirty-dot">•</span>}
       </div>
       <div className="toolbar-right">
         <button
@@ -101,20 +162,32 @@ export default function Toolbar(props: Props): JSX.Element {
         </button>
         <button
           type="button"
-          className={tocVisible ? 'active' : ''}
+          className={`panel-toggle ${filesVisible ? 'active' : ''}`}
+          onClick={onToggleFiles}
+          aria-pressed={filesVisible}
+          title="Toggle Files panel"
+        >
+          Files
+        </button>
+        <button
+          type="button"
+          className={`panel-toggle ${tocVisible ? 'active' : ''}`}
           onClick={onToggleToc}
+          aria-pressed={tocVisible}
           title="Toggle Table of Contents (TOC)"
         >
           TOC
         </button>
         <button
           type="button"
-          className={ghMode ? 'active' : ''}
+          className={`gh-toggle ${ghMode ? 'active' : ''}`}
           onClick={onToggleGh}
+          aria-pressed={ghMode}
           aria-label="Toggle GitHub extensions"
+          title="Toggle GitHub extensions"
         >
           <GitHubMark />
-          GH Ext
+          <span className="gh-label">GH Ext</span>
         </button>
         <div className="view-toggle">
           <button

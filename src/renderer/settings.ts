@@ -11,6 +11,19 @@ export interface Settings {
   ghOnByDefault: boolean;
   theme: Theme;
 
+  /** Starting state of a window's Auto-save toggle whenever a file is opened or created. */
+  autoSaveOnOpen: boolean;
+  /** Folder (relative to the document) that pasted/dropped images are saved into; '' = alongside it. */
+  imageFolder: string;
+  /** Keep editor and preview scroll positions in step in split view. */
+  scrollSync: boolean;
+  /** Keep the caret line vertically centered while typing. */
+  typewriterMode: boolean;
+  /** Window zoom factor (1 = 100%), restored on launch. */
+  zoomFactor: number;
+  vimMode: boolean;
+  lintEnabled: boolean;
+
   _v: number;
 }
 
@@ -25,6 +38,13 @@ export const DEFAULT_SETTINGS: Settings = {
   defaultView: 'split',
   ghOnByDefault: true,
   theme: 'auto',
+  autoSaveOnOpen: false,
+  imageFolder: 'assets',
+  scrollSync: true,
+  typewriterMode: false,
+  zoomFactor: 1,
+  vimMode: false,
+  lintEnabled: true,
   _v: CURRENT_VERSION,
 };
 
@@ -73,6 +93,19 @@ export function loadSettings(): Settings {
     // ignore corrupt storage; fall back to defaults
   }
   return settings;
+}
+
+/**
+ * Calls `cb` with the stored settings whenever another window saves its own.
+ * Each window saves its whole copy, so one that missed a change would
+ * otherwise write the old value back with its next unrelated change.
+ */
+export function onSettingsSaved(cb: (s: Settings) => void): () => void {
+  const listener = (e: StorageEvent) => {
+    if (e.key === SETTINGS_KEY && e.newValue !== null) cb(loadSettings());
+  };
+  window.addEventListener('storage', listener);
+  return () => window.removeEventListener('storage', listener);
 }
 
 export function saveSettings(s: Settings): void {

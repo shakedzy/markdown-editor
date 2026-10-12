@@ -139,6 +139,19 @@
   margin-right: 6px;
 }
 
+/* Task-list items: the checkbox takes the bullet's place, as on GitHub. In a
+   loose list marked puts the checkbox inside the item's first <p>. */
+.preview li:has(> input.task-list-item-checkbox),
+.preview li:has(> p:first-child > input.task-list-item-checkbox) {
+  list-style: none;
+}
+
+.preview input.task-list-item-checkbox {
+  cursor: pointer;
+  margin: 0 0.4em 0.2em -1.65em;
+  vertical-align: middle;
+}
+
 .preview del { text-decoration: line-through; }
 
 /* GitHub-style alerts */
@@ -246,3 +259,69 @@
   font-size: 0.9em;
   border-radius: 4px;
 }
+
+/* YAML front matter: metadata rather than content, so keep it quiet. */
+.preview .frontmatter {
+  margin: 0 0 1.2em;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: 0.85em;
+  color: var(--color-text-muted);
+}
+
+.preview .frontmatter > summary {
+  padding: 4px 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.preview .frontmatter[open] > summary {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.preview .frontmatter table {
+  width: 100%;
+  margin: 0;
+}
+
+.preview .frontmatter th,
+.preview .frontmatter td {
+  border: none;
+  padding: 3px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.preview .frontmatter th {
+  width: 1%;
+  background: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.preview .frontmatter td {
+  color: var(--color-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.preview .frontmatter-chip {
+  display: inline-block;
+  margin: 1px 4px 1px 0;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-bg-soft);
+}
+
+.preview .frontmatter pre {
+  margin: 0;
+  border-radius: 0 0 5px 5px;
+}
+
+.preview .frontmatter-error {
+  margin: 6px 10px;
+  color: #cf222e;
+}
+
+:root.dark .preview .frontmatter-error { color: #f85149; }

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Heading } from '../markdown/headings';
 
 interface Props {
@@ -5,7 +6,7 @@ interface Props {
   onSelect: (heading: Heading, index: number) => void;
 }
 
-export default function Toc({ headings, onSelect }: Props): JSX.Element {
+function Toc({ headings, onSelect }: Props): JSX.Element {
   if (headings.length === 0) {
     return (
       <aside className="toc toc-empty">
@@ -32,3 +33,7 @@ export default function Toc({ headings, onSelect }: Props): JSX.Element {
     </aside>
   );
 }
+
+// App re-renders on every keystroke; a long document's TOC has thousands of
+// entries, and its headings only change once typing pauses.
+export default memo(Toc);
