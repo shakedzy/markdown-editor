@@ -70,7 +70,10 @@ export type MenuAction =
   | 'exportHtml'
   | 'zoomIn'
   | 'zoomOut'
-  | 'zoomReset';
+  | 'zoomReset'
+  | 'previewFontBigger'
+  | 'previewFontSmaller'
+  | 'previewFontReset';
 
 /** A window's on/off states, which the menu shows as checkmarks while it is focused. */
 export interface MenuToggles {

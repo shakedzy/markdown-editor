@@ -1071,6 +1071,52 @@ button.active {
   gap: 4px;
 }
 
+/* Preview text size (App.tsx PreviewFontControls). */
+.tab-strip-actions {
+  margin-left: auto;
+  align-self: center;
+  padding-bottom: 4px;
+}
+
+.preview-font {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.preview-font-btn {
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--color-text-muted);
+}
+
+.preview-font-bigger {
+  font-size: 13px;
+}
+
+.preview-font-sign {
+  font-size: 10px;
+  margin-left: 1px;
+}
+
+.preview-font-size {
+  padding: 2px 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  border-color: transparent;
+  background: transparent;
+}
+
+.preview-font-btn:hover,
+.preview-font-size:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
 /* Scroll sync toggle; `button.active` colors it while on. */
 .pane-sync {
   padding: 2px 6px;
@@ -1209,6 +1255,17 @@ button.active {
 .preview-search-btn:disabled:hover {
   background: transparent;
   border-color: transparent;
+}
+
+/* "Take me there" landing spot: a word in the preview, a word in the editor. */
+::highlight(preview-target) {
+  background-color: var(--color-flash);
+  color: inherit;
+}
+
+.cm-flash {
+  animation: heading-flash 1.3s ease-out;
+  border-radius: 3px;
 }
 
 ::highlight(preview-search) {

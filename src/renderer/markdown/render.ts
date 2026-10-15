@@ -1,4 +1,4 @@
-import { Marked, Tokens } from 'marked';
+import { Lexer, Marked, Tokens } from 'marked';
 import type { MarkedExtension, MaybePromise, Token } from 'marked';
 import { markedHighlight } from 'marked-highlight';
 import markedAlert from 'marked-alert';
@@ -219,6 +219,21 @@ function boundEmojiStart(ext: MarkedExtension): MarkedExtension {
     };
   }
   return ext;
+}
+
+/**
+ * Before looking for emphasis, marked 14 masks out the code spans in a
+ * paragraph so a `*` inside one can't open or close it, but it pairs
+ * backticks one at a time: a span such as `` ` ```bash ` `` (a run of three
+ * inside a one-backtick span) threw the pairing off for the rest of the
+ * paragraph, so a later `*Rows*` closed on the `*` inside `fallback-*`
+ * instead. This pairs backtick runs of equal length, as CommonMark (and
+ * marked's own code span rule) does. Links and HTML are masked as before.
+ */
+const BLOCK_SKIP =
+  /\[[^[\]]*?\]\((?:\\.|[^\\\(\)]|\((?:\\.|[^\\\(\)])*\))*\)|(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)|<[^<>]*?>/g;
+for (const rules of Object.values(Lexer.rules.inline)) {
+  (rules as { blockSkip: RegExp }).blockSkip = BLOCK_SKIP;
 }
 
 function buildMarked(opts: RenderOptions): Marked {

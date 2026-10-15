@@ -9,7 +9,14 @@ import {
   useImperativeHandle,
 } from 'react';
 import { renderMarkdown } from '../markdown/render';
-import { MIN_MATCH_LEN, normalizeForMatch } from '../markdown/locate';
+import {
+  CONTEXT_CHARS,
+  MIN_MATCH_LEN,
+  locatePoint,
+  normalizeForMatch,
+  normalizeWithOffsets,
+  offsetOfPoint,
+} from '../markdown/locate';
 import { SourceAnchor, increasingAnchors } from '../scrollSync';
 import { stripUserContent } from '../links';
 import {
@@ -25,6 +32,8 @@ interface Props {
   source: string;
   ghMode: boolean;
   basePath: string | null;
+  /** Text size as a factor of the normal size. */
+  fontScale?: number;
   /**
    * A task checkbox was clicked: `index` of `total` task checkboxes, and the
    * state it should now have. Return false to reject the click.
@@ -53,8 +62,28 @@ export interface PreviewHandle {
    */
   scrollToAnchor(fragment: string): boolean;
   headingIndexAtCoords(x: number, y: number): number;
-  textAtCoords(x: number, y: number): string;
-  revealText(opts: { snippet: string; headingIndex: number }): void;
+  /**
+   * The rendered text at a point on screen: the source line of the block it's
+   * in (null if unknown), the clicked text node's text (one line of it in a
+   * code block), and the text just before and after the point.
+   */
+  contextAtCoords(
+    x: number,
+    y: number,
+  ): { line: number | null; snippet: string; before: string; after: string };
+  /**
+   * Show the spot a click in the editor pointed at, on source line `line`:
+   * the place between `before` and `after`, its word highlighted. Failing
+   * that, flash the element matching `snippet`, or else the
+   * `headingIndex`-th heading.
+   */
+  revealText(opts: {
+    before: string;
+    after: string;
+    line: number;
+    snippet: string;
+    headingIndex: number;
+  }): void;
   openSearch(): void;
   element(): HTMLDivElement | null;
   /**
@@ -69,9 +98,12 @@ export interface PreviewHandle {
 // mutating the DOM (which would fight the markdown re-render and mermaid).
 const HL_ALL = 'preview-search';
 const HL_ACTIVE = 'preview-search-active';
+// "Take me there" landing on a word.
+const HL_TARGET = 'preview-target';
+const TARGET_MS = 1500;
 
 const Preview = forwardRef<PreviewHandle, Props>(function Preview(
-  { source, ghMode, basePath, onToggleTask, onLayoutChange, onFollowLink },
+  { source, ghMode, basePath, fontScale = 1, onToggleTask, onLayoutChange, onFollowLink },
   ref,
 ) {
   const [debounced, setDebounced] = useState(source);
@@ -111,6 +143,9 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
     CSS.highlights.delete(HL_ACTIVE);
     rangesRef.current = [];
   }, []);
+
+  const targetTimerRef = useRef(0);
+  useEffect(() => () => window.clearTimeout(targetTimerRef.current), []);
 
   const scrollRangeIntoView = useCallback((range: Range) => {
     const host = hostRef.current;
@@ -302,26 +337,91 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
       }
       return result;
     },
-    textAtCoords(x: number, y: number) {
+    contextAtCoords(x: number, y: number) {
+      const host = hostRef.current;
       const range = document.caretRangeFromPoint(x, y);
-      if (!range) return document.elementFromPoint(x, y)?.textContent ?? '';
+      if (!host || !range || !host.contains(range.startContainer)) {
+        const snippet = document.elementFromPoint(x, y)?.textContent ?? '';
+        return { line: null, snippet, before: '', after: '' };
+      }
       const node = range.startContainer;
-      const text = node.textContent ?? '';
+      const off = range.startOffset;
+      let snippet = node.textContent ?? '';
       // Inside a code block the whole block is one text node; narrow to the
       // single line the click landed on.
-      if (node.nodeType === Node.TEXT_NODE && text.includes('\n')) {
-        const off = range.startOffset;
-        const start = text.lastIndexOf('\n', off - 1) + 1;
-        let end = text.indexOf('\n', off);
-        if (end < 0) end = text.length;
-        return text.slice(start, end);
+      if (node.nodeType === Node.TEXT_NODE && snippet.includes('\n')) {
+        const start = snippet.lastIndexOf('\n', off - 1) + 1;
+        let end = snippet.indexOf('\n', off);
+        if (end < 0) end = snippet.length;
+        snippet = snippet.slice(start, end);
       }
-      return text;
+      const block = (node instanceof Element ? node : node.parentElement)?.closest('[data-line]');
+      const line = block ? Number(block.getAttribute('data-line')) : NaN;
+      const span = document.createRange();
+      span.setStart(host, 0);
+      span.setEnd(node, off);
+      const before = span.toString().slice(-CONTEXT_CHARS);
+      span.setStart(node, off);
+      span.setEnd(host, host.childNodes.length);
+      const after = span.toString().slice(0, CONTEXT_CHARS);
+      return { line: Number.isFinite(line) ? line : null, snippet, before, after };
     },
-    revealText({ snippet, headingIndex }) {
+    revealText({ before, after, line, snippet, headingIndex }) {
       requestAnimationFrame(() => {
         const host = hostRef.current;
         if (!host) return;
+
+        // The exact spot, from the text around the click.
+        const nodes: Text[] = [];
+        const starts: number[] = [];
+        let all = '';
+        const walker = document.createTreeWalker(host, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          nodes.push(n as Text);
+          starts.push(all.length);
+          all += (n as Text).data;
+        }
+        const nodeAt = (offset: number): number => {
+          let lo = 0;
+          let hi = nodes.length - 1;
+          while (lo < hi) {
+            const mid = (lo + hi + 1) >> 1;
+            if (starts[mid]! <= offset) lo = mid;
+            else hi = mid - 1;
+          }
+          return lo;
+        };
+        const rendered = normalizeWithOffsets(all);
+        const point = locatePoint(rendered.text, before, after, (i) => {
+          const node = nodes[nodeAt(rendered.offsets[i] ?? all.length)];
+          const block = node?.parentElement?.closest('[data-line]');
+          const blockLine = block ? Number(block.getAttribute('data-line')) : NaN;
+          if (!Number.isFinite(blockLine)) return Infinity;
+          // The block holding the spot starts on or above its line.
+          return blockLine <= line ? line - blockLine : (blockLine - line) * 4;
+        });
+        if (point !== null && nodes.length > 0) {
+          const offset = offsetOfPoint(rendered.offsets, point, all.length, after);
+          const index = nodeAt(Math.min(offset, all.length - 1));
+          const node = nodes[index]!;
+          const at = Math.min(offset - starts[index]!, node.data.length);
+          const word = wordAround(node.data, at);
+          const range = document.createRange();
+          range.setStart(node, word.from);
+          range.setEnd(node, word.to);
+          openDetailsAround(node, host);
+          scrollRangeIntoView(range);
+          if (word.from < word.to) {
+            CSS.highlights.set(HL_TARGET, new Highlight(range));
+            window.clearTimeout(targetTimerRef.current);
+            targetTimerRef.current = window.setTimeout(
+              () => CSS.highlights.delete(HL_TARGET),
+              TARGET_MS,
+            );
+          }
+          return;
+        }
+
         const headings = host.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6');
         const anchor = headings[headingIndex] ?? null;
         const target = normalizeForMatch(snippet);
@@ -421,7 +521,18 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
     hostRef.current?.querySelector('details.frontmatter')?.removeAttribute('open');
   }, [html]);
 
-  useEffect(() => layoutChanged(), [html, layoutChanged]);
+  useEffect(() => layoutChanged(), [html, fontScale, layoutChanged]);
+
+  // A new text size scales the content; scale the scroll offset with it so
+  // the same text stays in view.
+  const fontScaleRef = useRef(fontScale);
+  useLayoutEffect(() => {
+    const previous = fontScaleRef.current;
+    fontScaleRef.current = fontScale;
+    const host = hostRef.current;
+    if (!host || previous === fontScale) return;
+    host.scrollTop = host.scrollTop * (fontScale / previous);
+  }, [fontScale]);
 
   // A waiting scroll runs once the preview has caught up with its source, if
   // that is the document it was meant for (not one typed since).
@@ -616,6 +727,7 @@ const Preview = forwardRef<PreviewHandle, Props>(function Preview(
       <div
         ref={hostRef}
         className="preview"
+        style={fontScale === 1 ? undefined : { fontSize: `${fontScale * 100}%` }}
         onClick={onHostClick}
         dangerouslySetInnerHTML={{ __html: html }}
       />
@@ -656,6 +768,19 @@ function drawingElement(drawing: Drawing, code: string, theme: MermaidTheme): HT
  * Open the collapsed <details> (the front matter block, say) that hide `node`,
  * as the browser's find does, so a match there can be shown.
  */
+/** The word of `text` at or around `at`, or the empty range at `at` if there is none. */
+function wordAround(text: string, at: number): { from: number; to: number } {
+  const isWord = (c: string | undefined) => c !== undefined && /[\p{L}\p{N}_]/u.test(c);
+  let from = at;
+  let to = at;
+  // On a word's edge (or between words), take the word the point touches.
+  if (!isWord(text[at]) && isWord(text[at - 1])) from = to = at - 1;
+  if (!isWord(text[from])) return { from: at, to: at };
+  while (from > 0 && isWord(text[from - 1])) from--;
+  while (to < text.length && isWord(text[to])) to++;
+  return { from, to };
+}
+
 function openDetailsAround(node: Node, host: HTMLElement): void {
   for (let el = node.parentElement; el && el !== host; el = el.parentElement) {
     if (

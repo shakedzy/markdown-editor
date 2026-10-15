@@ -10,7 +10,15 @@ import {
 } from '../editor/extensions';
 import { wrapBold, wrapItalic, wrapStrike, wrapUnderline } from '../editor/shortcuts';
 import { formatTable, insertTable } from '../editor/tables';
-import { MIN_MATCH_LEN, normalizeForMatch } from '../markdown/locate';
+import {
+  CONTEXT_CHARS,
+  MIN_MATCH_LEN,
+  locatePoint,
+  normalizeForMatch,
+  normalizeWithOffsets,
+  offsetOfPoint,
+} from '../markdown/locate';
+import { flashExtension, flashRange } from '../editor/flash';
 import { findTaskMarkers } from '../markdown/tasks';
 import { minimalChange } from '../editor/minimalChange';
 import { FileInserter, fileInsertion } from '../editor/imagePaste';
@@ -60,8 +68,19 @@ export interface EditorHandle {
   /** Lay out the table at the cursor; false when the cursor isn't in one. */
   formatTable(): boolean;
   scrollToLine(line: number): void;
-  lineInfoAtCoords(x: number, y: number): { line: number; text: string };
+  /**
+   * The source at a point on screen: its line, that line's text, and the
+   * text just before and after the position there.
+   */
+  contextAtCoords(x: number, y: number): { line: number; text: string; before: string; after: string };
+  /**
+   * Put the cursor on the spot a click in the preview pointed at: the place
+   * between `before` and `after` nearest `nearLine`. Failing that, select the
+   * line matching `snippet`, or else `fallbackLine`.
+   */
   revealSource(opts: {
+    before: string;
+    after: string;
     snippet: string;
     nearLine: number;
     fallbackLine: number;
@@ -185,6 +204,7 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor(
         // First: Vim must see keys before every other binding.
         vimKeybindings(vimMode, (command) => onVimCommandRef.current?.(command)),
         ...buildExtensions(),
+        flashExtension,
         EditorView.updateListener.of((update) => {
           if (update.docChanged) {
             onChangeRef.current(update.state.doc.toString());
@@ -307,19 +327,47 @@ const Editor = forwardRef<EditorHandle, Props>(function Editor(
       });
       view.focus();
     },
-    lineInfoAtCoords(x: number, y: number) {
+    contextAtCoords(x: number, y: number) {
       const view = viewRef.current;
-      if (!view) return { line: 1, text: '' };
+      if (!view) return { line: 1, text: '', before: '', after: '' };
       // `precise: false` snaps to the nearest position, so this always
       // resolves even when the click lands past the end of a line.
       const pos = view.posAtCoords({ x, y }, false);
-      const line = view.state.doc.lineAt(pos);
-      return { line: line.number, text: line.text };
+      const { doc } = view.state;
+      const line = doc.lineAt(pos);
+      return {
+        line: line.number,
+        text: line.text,
+        before: doc.sliceString(Math.max(0, pos - CONTEXT_CHARS), pos),
+        after: doc.sliceString(pos, pos + CONTEXT_CHARS),
+      };
     },
-    revealSource({ snippet, nearLine, fallbackLine }) {
+    revealSource({ before, after, snippet, nearLine, fallbackLine }) {
       const view = viewRef.current;
       if (!view) return;
       const doc = view.state.doc;
+
+      // The exact spot: a caret there, and its word flashed.
+      const source = normalizeWithOffsets(doc.toString());
+      const point = locatePoint(source.text, before, after, (i) => {
+        const line = doc.lineAt(source.offsets[i] ?? doc.length).number;
+        // The click's block starts on `nearLine`, so the spot is at or below it.
+        return line >= nearLine ? line - nearLine : (nearLine - line) * 4;
+      });
+      if (point !== null) {
+        const pos = offsetOfPoint(source.offsets, point, doc.length, after);
+        const word = view.state.wordAt(pos);
+        view.dispatch({
+          selection: { anchor: pos },
+          effects: [
+            EditorView.scrollIntoView(pos, { y: 'center' }),
+            ...(word ? [flashRange(view, word.from, word.to)] : []),
+          ],
+        });
+        view.focus();
+        return;
+      }
+
       const target = normalizeForMatch(snippet);
 
       // Find the source line whose text matches the clicked content, preferring

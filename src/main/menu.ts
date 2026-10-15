@@ -291,6 +291,22 @@ function buildTemplate({
         { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: send('zoomOut') },
         ...zoomAliases,
         { type: 'separator' },
+        {
+          label: 'Bigger Preview Text',
+          accelerator: 'CmdOrCtrl+Alt+=',
+          click: send('previewFontBigger'),
+        },
+        {
+          label: 'Smaller Preview Text',
+          accelerator: 'CmdOrCtrl+Alt+-',
+          click: send('previewFontSmaller'),
+        },
+        {
+          label: 'Actual Preview Text Size',
+          accelerator: 'CmdOrCtrl+Alt+0',
+          click: send('previewFontReset'),
+        },
+        { type: 'separator' },
         { role: 'togglefullscreen' },
       ],
     },

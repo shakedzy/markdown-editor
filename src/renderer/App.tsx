@@ -1,4 +1,4 @@
-import { CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CSSProperties, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { EditorState } from '@codemirror/state';
 import { openSearchPanel } from '@codemirror/search';
 import Toolbar, { AutoSaveStatus } from './components/Toolbar';
@@ -22,6 +22,7 @@ import { Settings, loadSettings, onSettingsSaved, saveSettings, applyTheme } fro
 import { exportPreviewToHtml, exportPreviewToPdf } from './export';
 import { copyPreviewAsRichText } from './richText';
 import { sameZoom, setWindowZoom, useZoom } from './zoom';
+import { isDefaultPreviewFont, normalizePreviewFont, stepPreviewFont } from './previewFont';
 import { useScrollSync } from './useScrollSync';
 import { useAutoSave } from './useAutoSave';
 import { useCrashRecovery } from './useCrashRecovery';
@@ -29,6 +30,7 @@ import { useImagePaste } from './useImagePaste';
 import { useLatest } from './useLatest';
 import { classifyLink, headingIndexForFragment } from './links';
 import { pathKey } from './pathKey';
+import { shortcut } from './platform';
 import { displayName, fileName } from './fileName';
 import welcomeContent from './welcome.md?raw';
 import type { FileResult, FolderListing, MenuAction, RecoveredDocument } from '../shared/types';
@@ -863,6 +865,27 @@ export default function App(): JSX.Element {
   );
   const { zoom, zoomIn, zoomOut, zoomReset } = useZoom(INITIAL_ZOOM, persistZoom);
 
+  const previewFontScale = normalizePreviewFont(settings.previewFontScale);
+  const setPreviewFont = useCallback(
+    (next: (current: number) => number) =>
+      setSettings((s) => {
+        const scale = next(normalizePreviewFont(s.previewFontScale));
+        return scale === s.previewFontScale ? s : { ...s, previewFontScale: scale };
+      }),
+    [],
+  );
+  const previewFontBigger = useCallback(() => setPreviewFont((f) => stepPreviewFont(f, 1)), [setPreviewFont]);
+  const previewFontSmaller = useCallback(() => setPreviewFont((f) => stepPreviewFont(f, -1)), [setPreviewFont]);
+  const previewFontReset = useCallback(() => setPreviewFont(() => 1), [setPreviewFont]);
+  const previewFontControls = (
+    <PreviewFontControls
+      scale={previewFontScale}
+      onBigger={previewFontBigger}
+      onSmaller={previewFontSmaller}
+      onReset={previewFontReset}
+    />
+  );
+
   const onShowShortcuts = useCallback(() => setShortcutsOpen(true), []);
   const onCloseShortcuts = useCallback(() => setShortcutsOpen(false), []);
   const onShowSettings = useCallback(() => setSettingsOpen(true), []);
@@ -896,22 +919,36 @@ export default function App(): JSX.Element {
       };
 
       if (within(editorRef.current?.view()?.dom)) {
-        const info = editorRef.current?.lineInfoAtCoords(x, y) ?? {
+        const ctx = editorRef.current?.contextAtCoords(x, y) ?? {
           line: 1,
           text: '',
+          before: '',
+          after: '',
         };
         let idx = 0;
         for (let i = 0; i < headings.length; i++) {
-          if (headings[i]!.line <= info.line) idx = i;
+          if (headings[i]!.line <= ctx.line) idx = i;
           else break;
         }
-        previewRef.current?.revealText({ snippet: info.text, headingIndex: idx });
+        previewRef.current?.revealText({
+          before: ctx.before,
+          after: ctx.after,
+          line: ctx.line,
+          snippet: ctx.text,
+          headingIndex: idx,
+        });
         if (viewMode === 'tabs') setActiveTab('preview');
       } else if (within(previewRef.current?.element())) {
         const idx = previewRef.current?.headingIndexAtCoords(x, y) ?? 0;
-        const snippet = previewRef.current?.textAtCoords(x, y) ?? '';
-        const nearLine = headings[idx]?.line ?? 1;
-        editorRef.current?.revealSource({ snippet, nearLine, fallbackLine: nearLine });
+        const ctx = previewRef.current?.contextAtCoords(x, y);
+        const headingLine = headings[idx]?.line ?? 1;
+        editorRef.current?.revealSource({
+          before: ctx?.before ?? '',
+          after: ctx?.after ?? '',
+          snippet: ctx?.snippet ?? '',
+          nearLine: ctx?.line ?? headingLine,
+          fallbackLine: headingLine,
+        });
         if (viewMode === 'tabs') setActiveTab('editor');
       }
     },
@@ -1026,6 +1063,15 @@ export default function App(): JSX.Element {
         case 'zoomReset':
           zoomReset();
           break;
+        case 'previewFontBigger':
+          previewFontBigger();
+          break;
+        case 'previewFontSmaller':
+          previewFontSmaller();
+          break;
+        case 'previewFontReset':
+          previewFontReset();
+          break;
         case 'takeMeThere':
           onTakeMeThere(payload);
           break;
@@ -1064,6 +1110,9 @@ export default function App(): JSX.Element {
     zoomIn,
     zoomOut,
     zoomReset,
+    previewFontBigger,
+    previewFontSmaller,
+    previewFontReset,
   ]);
 
   useEffect(() => window.api.onOpenFromOS(loadDocument), [loadDocument]);
@@ -1400,6 +1449,9 @@ export default function App(): JSX.Element {
               >
                 Preview
               </button>
+              {activeTab === 'preview' && (
+                <div className="tab-strip-actions">{previewFontControls}</div>
+              )}
             </div>
           )}
           <div
@@ -1447,13 +1499,16 @@ export default function App(): JSX.Element {
                   onOpenInTab={() => onPopToTab('preview')}
                   scrollSync={settings.scrollSync}
                   onToggleScrollSync={onToggleScrollSync}
-                />
+                >
+                  {previewFontControls}
+                </PaneHeader>
               )}
               <Preview
                 ref={previewRef}
                 source={buffer}
                 ghMode={ghMode}
                 basePath={basePath}
+                fontScale={previewFontScale}
                 onToggleTask={onToggleTask}
                 onLayoutChange={scrollSync.onPreviewLayout}
                 onFollowLink={onPreviewLink}
@@ -1485,16 +1540,20 @@ function PaneHeader({
   onOpenInTab,
   scrollSync,
   onToggleScrollSync,
+  children,
 }: {
   label: string;
   onOpenInTab: () => void;
   scrollSync: boolean;
   onToggleScrollSync: () => void;
+  /** Pane-specific buttons, before the shared ones. */
+  children?: ReactNode;
 }): JSX.Element {
   return (
     <div className="pane-header">
       <span className="pane-header-label">{label}</span>
       <div className="pane-header-actions">
+        {children}
         <button
           type="button"
           className={`pane-sync ${scrollSync ? 'active' : ''}`}
@@ -1503,8 +1562,20 @@ function PaneHeader({
           title="Sync scrolling"
           aria-label="Sync scrolling"
         >
-          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" fill="currentColor">
-            <path d="m7.775 3.275 1.25-1.25a3.5 3.5 0 1 1 4.95 4.95l-2.5 2.5a3.5 3.5 0 0 1-4.95 0 .751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018 1.998 1.998 0 0 0 2.83 0l2.5-2.5a2.002 2.002 0 0 0-2.83-2.83l-1.25 1.25a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042Zm-4.69 9.64a1.998 1.998 0 0 0 2.83 0l1.25-1.25a.751.751 0 0 1 1.042.018.751.751 0 0 1 .018 1.042l-1.25 1.25a3.5 3.5 0 1 1-4.95-4.95l2.5-2.5a3.5 3.5 0 0 1 4.95 0 .751.751 0 0 1-.018 1.042.751.751 0 0 1-1.042.018 1.998 1.998 0 0 0-2.83 0l-2.5 2.5a1.998 1.998 0 0 0 0 2.83Z" />
+          {/* Two panes' scroll arrows, moving together. */}
+          <svg
+            viewBox="0 0 16 16"
+            width="14"
+            height="14"
+            aria-hidden="true"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M4.5 2.5v11M2.5 4.5l2-2 2 2M2.5 11.5l2 2 2-2" />
+            <path d="M11.5 2.5v11M9.5 4.5l2-2 2 2M9.5 11.5l2 2 2-2" />
           </svg>
         </button>
         <button
@@ -1520,6 +1591,53 @@ function PaneHeader({
           </svg>
         </button>
       </div>
+    </div>
+  );
+}
+
+/** Smaller / Bigger buttons for the preview's text, with its size when it isn't 100% (click to reset). */
+function PreviewFontControls({
+  scale,
+  onBigger,
+  onSmaller,
+  onReset,
+}: {
+  scale: number;
+  onBigger: () => void;
+  onSmaller: () => void;
+  onReset: () => void;
+}): JSX.Element {
+  const percent = `${Math.round(scale * 100)}%`;
+  return (
+    <div className="preview-font" role="group" aria-label="Preview text size">
+      <button
+        type="button"
+        className="preview-font-btn"
+        onClick={onSmaller}
+        title={`Smaller preview text (${shortcut('Mod+Alt+-')})`}
+        aria-label="Smaller preview text"
+      >
+        A<span className="preview-font-sign">−</span>
+      </button>
+      {!isDefaultPreviewFont(scale) && (
+        <button
+          type="button"
+          className="preview-font-size"
+          onClick={onReset}
+          title={`Preview text ${percent}. Click to reset to 100% (${shortcut('Mod+Alt+0')})`}
+        >
+          {percent}
+        </button>
+      )}
+      <button
+        type="button"
+        className="preview-font-btn preview-font-bigger"
+        onClick={onBigger}
+        title={`Bigger preview text (${shortcut('Mod+Alt+=')})`}
+        aria-label="Bigger preview text"
+      >
+        A<span className="preview-font-sign">+</span>
+      </button>
     </div>
   );
 }

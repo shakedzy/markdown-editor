@@ -91,6 +91,9 @@ const SECTIONS: Section[] = [
       { keys: `${Mod}+0`, desc: 'Actual size (100%; keypad 0 works too)' },
       { keys: `${Mod}+=`, desc: 'Zoom in (keypad + works too)' },
       { keys: `${Mod}+-`, desc: 'Zoom out (keypad − works too)' },
+      { keys: `${Mod}+${Alt}+=`, desc: 'Bigger preview text' },
+      { keys: `${Mod}+${Alt}+-`, desc: 'Smaller preview text' },
+      { keys: `${Mod}+${Alt}+0`, desc: 'Preview text at normal size' },
       IS_MAC
         ? { keys: `Ctrl+${Mod}+F`, desc: 'Toggle full screen' }
         : { keys: 'F11', desc: 'Toggle full screen' },

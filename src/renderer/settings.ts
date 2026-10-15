@@ -21,6 +21,8 @@ export interface Settings {
   typewriterMode: boolean;
   /** Window zoom factor (1 = 100%), restored on launch. */
   zoomFactor: number;
+  /** Preview text size as a factor of its normal size (1 = 100%). */
+  previewFontScale: number;
   vimMode: boolean;
   lintEnabled: boolean;
 
@@ -43,6 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
   scrollSync: true,
   typewriterMode: false,
   zoomFactor: 1,
+  previewFontScale: 1,
   vimMode: false,
   lintEnabled: true,
   _v: CURRENT_VERSION,
