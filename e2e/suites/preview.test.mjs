@@ -14,6 +14,12 @@ Intro paragraph with many words ${WORDS} and **bold marker** text continuing on.
 Some *Columns* here; \`shell_blocks\` uses fenced \` \`\`\`bash \` blocks. *Rows* are sandbox; the \`fallback-*\` rows and \`resolver-*\` rows.
 `;
 
+/** Wait until the preview has rendered `text` (it trails the editor, and starts on the welcome document). */
+const previewShows = (page, text) =>
+  waitFor(() => page.evaluate((t) => document.querySelector('.preview')?.textContent.includes(t), text), {
+    message: `preview showing ${JSON.stringify(text)}`,
+  });
+
 /** Viewport coordinates of the middle of `word` in the preview. */
 const previewWordCoords = (page, word) =>
   page.evaluate((w) => {
@@ -36,9 +42,8 @@ test('code span with a backtick run inside keeps later emphasis intact', async (
   const dir = fixture({ 'a.md': DOC });
   await withApp({}, async ({ app, win }) => {
     const page = await openFile(app, win, `${dir}/a.md`);
-    const ems = await waitFor(() =>
-      page.evaluate(() => [...document.querySelectorAll('.preview p em')].map((e) => e.textContent)),
-    );
+    await previewShows(page, 'are sandbox');
+    const ems = await page.evaluate(() => [...document.querySelectorAll('.preview p em')].map((e) => e.textContent));
     assert.deepEqual(ems, ['Columns', 'Rows']);
     const codes = await page.evaluate(() => [...document.querySelectorAll('.preview p code')].map((e) => e.textContent));
     assert.deepEqual(codes, ['shell_blocks', '```bash', 'fallback-*', 'resolver-*']);
@@ -49,7 +54,7 @@ test('Take me there: preview to the exact spot in the editor', async () => {
   const dir = fixture({ 'a.md': DOC });
   await withApp({}, async ({ app, win }) => {
     const page = await openFile(app, win, `${dir}/a.md`);
-    await waitFor(() => page.evaluate(() => document.querySelector('.preview')?.textContent.includes('quebec')));
+    await previewShows(page, 'quebec');
     const coords = await previewWordCoords(page, 'quebec');
     await menu(app, page, 'takeMeThere', coords);
     const start = await posOf(page, 'quebec');
@@ -66,6 +71,7 @@ test('Take me there: editor to the exact word in the preview', async () => {
   const dir = fixture({ 'a.md': DOC });
   await withApp({}, async ({ app, win }) => {
     const page = await openFile(app, win, `${dir}/a.md`);
+    await previewShows(page, 'romeo');
     const pos = (await posOf(page, 'romeo')) + 2;
     const coords = await page.evaluate((p) => {
       const v = document.querySelector('.cm-content').cmTile.view;
@@ -87,6 +93,7 @@ test('preview text size: buttons and menu commands', async () => {
   const dir = fixture({ 'a.md': DOC });
   await withApp({}, async ({ app, win }) => {
     const page = await openFile(app, win, `${dir}/a.md`);
+    await previewShows(page, 'are sandbox');
     const size = () => page.evaluate(() => document.querySelector('.preview').style.fontSize);
     assert.equal(await size(), '');
     await page.click('.preview-font-bigger');
